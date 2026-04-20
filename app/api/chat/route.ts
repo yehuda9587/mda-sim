@@ -2,24 +2,20 @@ import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { buildSystemPrompt, Message } from '@/lib/system-prompt';
 
-// ודא שהמשתנה GEMINI_API_KEY מוגדר ב-Vercel!
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
 export const runtime = 'nodejs';
 
 export async function POST(req: NextRequest) {
   try {
-    // בדיקת בטיחות: האם המפתח קיים?
     if (!process.env.GEMINI_API_KEY) {
-      console.error("CRITICAL: GEMINI_API_KEY is missing in Vercel!");
       return NextResponse.json({ error: 'API Key missing' }, { status: 500 });
     }
 
     const { messages, mode } = await req.json() as { messages: Message[]; mode: 'א' | 'ב' };
-    
     const systemPrompt = buildSystemPrompt(mode || 'ב', messages);
 
-    // נשתמש בשם המודל המעודכן ביותר
+    // עדכון שם המודל לפורמט המלא
     const model = genAI.getGenerativeModel({ 
       model: "gemini-1.5-flash",
     });
@@ -31,19 +27,10 @@ export async function POST(req: NextRequest) {
 
     const lastMessage = messages[messages.length - 1].content;
 
-    // ג'ימיני מאפשר להכניס את ה-System Prompt כאן
-    const chat = model.startChat({
-      history: history,
-      generationConfig: {
-        maxOutputTokens: 1000,
-      },
-    });
-
-    // הוספת ה-System Prompt כהודעה ראשונה "בלתי נראית" במידת הצורך
-    // או פשוט שליחת ההודעה עם ההנחיות
+    // שליחה עם ה-System Instruction בתוך ה-Contents
     const result = await model.generateContentStream({
       contents: [
-        { role: 'user', parts: [{ text: systemPrompt }] },
+        { role: 'user', parts: [{ text: `SYSTEM INSTRUCTION: ${systemPrompt}` }] },
         ...history,
         { role: 'user', parts: [{ text: lastMessage }] }
       ]
@@ -58,10 +45,7 @@ export async function POST(req: NextRequest) {
             if (text) controller.enqueue(encoder.encode(text));
           }
           controller.close();
-        } catch (err) {
-          console.error("Stream Error:", err);
-          controller.error(err);
-        }
+        } catch (err) { controller.error(err); }
       },
     });
 
@@ -70,10 +54,7 @@ export async function POST(req: NextRequest) {
     });
 
   } catch (err: any) {
-    console.error('Gemini API Detailed Error:', err);
-    return NextResponse.json({ 
-      error: 'שגיאה בחיבור לגוגל',
-      details: err.message 
-    }, { status: 500 });
+    console.error('Gemini Error:', err);
+    return NextResponse.json({ error: 'שגיאה בחיבור לגוגל', details: err.message }, { status: 500 });
   }
 }
