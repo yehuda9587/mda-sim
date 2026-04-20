@@ -8,7 +8,7 @@ export interface Message {
 export function buildSystemPrompt(mode: 'א' | 'ב', messages: Message[]): string {
   const lastUserMessage = messages.filter(m => m.role === 'user').pop()?.content || '';
   
-  // שליפת מפתחות רלוונטיים וסינון כדי לא לעבור את מכסת ה-Tokens
+  // Select relevant protocols based on keywords
   const relevantKeys = Object.keys(medicalData)
     .filter(key => lastUserMessage.toLowerCase().includes(key.toLowerCase()))
     .slice(0, 2); 
@@ -17,7 +17,7 @@ export function buildSystemPrompt(mode: 'א' | 'ב', messages: Message[]): strin
     ? relevantKeys.map(key => (medicalData as any)[key]).join('\n\n')
     : "פעל לפי פרוטוקולי מד\"א סטנדרטיים (BLS/ALS).";
 
-  // הגבלת אורך הטקסט כדי למנוע שגיאת 413 מול Groq
+  // Truncate to stay under Groq's 6,000 token limit
   if (contextData.length > 2500) {
     contextData = contextData.substring(0, 2500) + "... [המשך הפרוטוקול קוצר]";
   }
@@ -33,4 +33,4 @@ export function buildSystemPrompt(mode: 'א' | 'ב', messages: Message[]): strin
 
 פרוטוקול רלוונטי מהמערכת:
 ${contextData}`;
-}
+} // <--- THIS is the brace that was missing!
