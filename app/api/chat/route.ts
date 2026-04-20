@@ -1,43 +1,51 @@
-import { NextRequest, NextResponse } from 'next/server'
-import Groq from 'groq-sdk'
-import { buildSystemPrompt, Message } from '@/lib/system-prompt'
+import { NextRequest, NextResponse } from 'next/server';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import { buildSystemPrompt, Message } from '@/lib/system-prompt';
 
-const client = new Groq({ apiKey: process.env.GROQ_API_KEY || '' })
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
-export const dynamic = 'force-dynamic'
-export const maxDuration = 60
+export const runtime = 'nodejs';
 
 export async function POST(req: NextRequest) {
   try {
-    if (!process.env.GROQ_API_KEY) {
-      return NextResponse.json({ error: 'API Key missing' }, { status: 500 })
-    }
+    const { messages, mode } = await req.json() as { messages: Message[]; mode: 'א' | 'ב' };
+    
+    // שליפת הפרוטוקולים הרלוונטיים (בג'ימיני אפשר לשלוח הרבה יותר מידע!)
+    const systemPrompt = buildSystemPrompt(mode || 'ב', messages);
 
-    const { messages, mode } = await req.json() as { messages: Message[]; mode: 'א' | 'ב' }
-    const systemPrompt = buildSystemPrompt(mode || 'ב', messages)
+    const model = genAI.getGenerativeModel({ 
+      model: "gemini-1.5-flash",
+      systemInstruction: systemPrompt,
+    });
 
-    // Buffered (non-streaming) response — required for Vercel Free Tier
-    const completion = await client.chat.completions.create({
-      model: 'llama-3.1-8b-instant',
-      max_tokens: 2048,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        ...messages.map(m => ({ role: m.role, content: m.content })),
-      ],
-      stream: false,
-    })
+    // המרת ההיסטוריה לפורמט של Gemini
+    const history = messages.slice(0, -1).map(m => ({
+      role: m.role === 'user' ? 'user' : 'model',
+      parts: [{ text: m.content }],
+    }));
 
-    const text = completion.choices[0]?.message?.content ?? ''
+    const lastMessage = messages[messages.length - 1].content;
 
-    return new NextResponse(text, {
-      status: 200,
-      headers: {
-        'Content-Type': 'text/plain; charset=utf-8',
-        'Cache-Control': 'no-store',
+    const chat = model.startChat({ history });
+    const result = await chat.sendMessageStream(lastMessage);
+
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      async start(controller) {
+        for await (const chunk of result.stream) {
+          const text = chunk.text();
+          if (text) controller.enqueue(encoder.encode(text));
+        }
+        controller.close();
       },
-    })
-  } catch (err) {
-    console.error('API error:', err)
-    return NextResponse.json({ error: 'Internal Error' }, { status: 500 })
+    });
+
+    return new Response(stream, {
+      headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+    });
+
+  } catch (err: any) {
+    console.error('Gemini API Error:', err);
+    return NextResponse.json({ error: 'שגיאה בחיבור ל-Gemini' }, { status: 500 });
   }
 }
