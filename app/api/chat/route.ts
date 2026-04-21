@@ -7,24 +7,26 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 export async function POST(req: NextRequest) {
   try {
     const { messages, mode } = await req.json() as { messages: Message[]; mode: 'א' | 'ב' };
-    const chatMessages = messages.filter(m => !m.content.startsWith("הוראות תפעול:"));
-    const systemPrompt = buildSystemPrompt(mode || 'א', chatMessages);
-
+    
+    // בונים פרומפט על בסיס כל ההודעות
+    const systemPrompt = buildSystemPrompt(mode || 'א', messages);
     const model = genAI.getGenerativeModel({ 
       model: "gemini-2.5-flash", 
       systemInstruction: systemPrompt 
     });
 
-    let history = chatMessages.slice(0, -1).map(m => ({
+    // המרה לפורמט גוגל - שומרים על כל ההיסטוריה!
+    let history = messages.slice(0, -1).map(m => ({
       role: m.role === 'assistant' ? 'model' : 'user',
       parts: [{ text: m.content }],
     }));
 
+    // מוודאים שמתחיל ב-User
     while (history.length > 0 && history[0].role !== 'user') {
       history.shift();
     }
 
-    const lastMessage = chatMessages[chatMessages.length - 1]?.content || "התחל תרחיש";
+    const lastMessage = messages[messages.length - 1]?.content || "התחל תרחיש";
     const chat = model.startChat({ history });
     const result = await chat.sendMessageStream(lastMessage);
 
@@ -33,10 +35,9 @@ export async function POST(req: NextRequest) {
       async start(controller) {
         for await (const chunk of result.stream) {
           let text = chunk.text();
-          // סינון אגרסיבי של בלוקי מחשבה אם הם דולפים
+          // סינון טוטאלי של מחשבות פנימיות
           text = text.replace(/THOUGHT:?[\s\S]*?\n\n/gi, "");
           text = text.replace(/<thought>[\s\S]*?<\/thought>/gi, "");
-          
           if (text) controller.enqueue(encoder.encode(text));
         }
         controller.close();
