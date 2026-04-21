@@ -35,13 +35,9 @@ export default function MdaSimulator() {
     setIsActive(true);
     setIsPaused(false);
 
-    // פקודה שקטה ל-AI
     const res = await fetch('/api/chat', {
       method: 'POST',
-      body: JSON.stringify({ 
-        messages: [{ role: 'user', content: 'התחל תרחיש' }], 
-        mode: 'א' 
-      }),
+      body: JSON.stringify({ messages: [{ role: 'user', content: 'התחל תרחיש' }], mode: 'א' }),
     });
     handleStream(res);
   };
@@ -50,7 +46,6 @@ export default function MdaSimulator() {
     if (!text.trim() || isPaused) return;
     const userMsg = { role: 'user', content: text };
     const newMessages = [...messages, userMsg];
-    
     setMessages(newMessages);
     setInput('');
 
@@ -106,9 +101,16 @@ export default function MdaSimulator() {
 
       <div className="w-full max-w-2xl bg-white shadow-sm border border-slate-200 rounded-2xl p-6 mb-4">
         <div className="flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-slate-800">✚ סימולטור מע"ר</h1>
-          <div className="flex items-center gap-3 text-xl font-mono font-bold px-4 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-100 shadow-sm">
-            {formatTime(seconds)}
+          <h1 className="text-2xl font-bold">✚ סימולטור מע"ר</h1>
+          <div className="flex items-center gap-3">
+            {isActive && (
+              <button onClick={() => setIsPaused(!isPaused)} className="px-3 py-1 bg-slate-100 rounded-md text-xs font-bold text-slate-500 shadow-sm">
+                {isPaused ? 'המשך ▶' : 'עצור ⏸'}
+              </button>
+            )}
+            <div className={`text-xl font-mono font-bold px-4 py-1 rounded-full border shadow-sm ${isPaused ? 'bg-orange-50 border-orange-200 text-orange-600' : 'bg-blue-50 border-blue-100 text-blue-700'}`}>
+              {formatTime(seconds)}
+            </div>
           </div>
         </div>
         {!isActive && (
@@ -124,7 +126,7 @@ export default function MdaSimulator() {
             <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
               <div className={`max-w-[85%] p-4 rounded-2xl shadow-sm ${m.role === 'user' ? 'bg-blue-600 text-white rounded-tr-none' : 'bg-white border border-slate-200 rounded-tl-none'}`}>
                 <div className="text-[10px] font-bold opacity-50 mb-1">{m.role === 'user' ? 'מע"ר' : 'בוחן סימולציה'}</div>
-                <div className="whitespace-pre-wrap text-sm leading-relaxed font-medium">{m.content}</div>
+                <div className="whitespace-pre-wrap text-sm leading-relaxed">{m.content}</div>
               </div>
             </div>
           ))}
@@ -138,10 +140,10 @@ export default function MdaSimulator() {
               disabled={isPaused || !isActive}
               onChange={e => setInput(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && sendMessage(input)}
-              placeholder="תאר פעולה (סכימת ABCDE)..."
+              placeholder={isPaused ? "הסימולציה בעצירה..." : "תאר פעולה (סכימת ABCDE)..."}
               className="flex-1 border border-slate-200 rounded-xl px-4 py-4 focus:outline-none focus:ring-2 focus:ring-blue-500 text-lg shadow-inner disabled:bg-slate-50"
             />
-            <button onClick={() => sendMessage(input)} disabled={isPaused || !isActive} className="bg-slate-900 text-white px-8 py-2 rounded-xl font-bold shadow-md active:scale-95 transition-all">
+            <button onClick={() => sendMessage(input)} disabled={isPaused || !isActive} className="bg-slate-900 text-white px-8 py-2 rounded-xl font-bold hover:bg-slate-800 shadow-md active:scale-95 transition-all">
               שלח
             </button>
           </div>
