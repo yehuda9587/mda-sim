@@ -7,8 +7,8 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 // ━━━ סינון דליפות ━━━
 // רשימת תבניות שמסננות תוכן פנימי שנדלף — נפעל על הטקסט המלא לא על chunks
 const LEAK_PATTERNS: RegExp[] = [
-  /THOUGHT:?.*?(?=\n\n|\n[^\s]|$)/gis,
-  /Reasoning:?.*?(?=\n\n|\n[^\s]|$)/gis,
+  /THOUGHT:?[\s\S]*?(?=\n\n|\n[^\s]|$)/gi,
+  /Reasoning:?[\s\S]*?(?=\n\n|\n[^\s]|$)/gi,
   /<thought>[\s\S]*?<\/thought>/gi,
   /```json[\s\S]*?```/g,
 ];
