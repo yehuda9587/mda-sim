@@ -17,14 +17,12 @@ export async function POST(req: NextRequest) {
       systemInstruction: systemPrompt,
     });
 
-    // הפיכת ההודעות לפורמט של גוגל (user/model)
+    // וידוא שההיסטוריה תמיד מתחילה ב-user
     const history = messages.slice(0, -1).map(m => ({
       role: m.role === 'assistant' ? 'model' : 'user',
       parts: [{ text: m.content }],
     }));
 
-    // תיקון קריטי: אם ההיסטוריה לא מתחילה ב-user, ננקה אותה עד ה-user הראשון
-    // זה מונע את שגיאת ה-"First content should be with role 'user'"
     while (history.length > 0 && history[0].role !== 'user') {
       history.shift();
     }
