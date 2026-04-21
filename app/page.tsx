@@ -29,26 +29,13 @@ export default function MdaSimulator() {
     scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const extractAndSaveScore = (text: string) => {
-    const scoreMatch = text.match(/(?:ציון סופי|ציון):\s*(\d+)/i);
-    if (scoreMatch) {
-      const score = parseInt(scoreMatch[1]);
-      setHistory(prev => {
-        const updated = [{ date: new Date().toLocaleDateString('he-IL'), score }, ...prev].slice(0, 5);
-        localStorage.setItem('mda_history_vfinal', JSON.stringify(updated));
-        return updated;
-      });
-      setIsActive(false);
-    }
-  };
-
   const startScenario = async () => {
     setMessages([]); // מנקה הכל להתחלה נקייה
     setSeconds(0);
     setIsActive(true);
     setIsPaused(false);
 
-    // שליחה שקטה ל-AI שיחזיר מיד הוראות ומקרה
+    // שליחה שקטה של פקודת ההתחלה
     const res = await fetch('/api/chat', {
       method: 'POST',
       body: JSON.stringify({ 
@@ -83,7 +70,17 @@ export default function MdaSimulator() {
       while (true) {
         const { done, value } = await reader.read();
         if (done) {
-          extractAndSaveScore(assistantText);
+          // חילוץ ציון בסוף
+          const scoreMatch = assistantText.match(/(?:ציון סופי|ציון):\s*(\d+)/i);
+          if (scoreMatch) {
+            const score = parseInt(scoreMatch[1]);
+            setHistory(prev => {
+              const updated = [{ date: new Date().toLocaleDateString('he-IL'), score }, ...prev].slice(0, 5);
+              localStorage.setItem('mda_history_vfinal', JSON.stringify(updated));
+              return updated;
+            });
+            setIsActive(false);
+          }
           break;
         }
         assistantText += new TextDecoder().decode(value);
@@ -99,9 +96,9 @@ export default function MdaSimulator() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans p-4 flex flex-col items-center">
-      <div className="w-full max-w-2xl mb-4 flex gap-3 overflow-x-auto py-2 no-scrollbar">
+      <div className="w-full max-w-2xl mb-4 flex gap-3 overflow-x-auto py-2">
         {history.map((h, i) => (
-          <div key={i} className="bg-white border-b-4 border-b-blue-600 border border-slate-200 p-3 rounded-xl shadow-sm min-w-[100px] text-center shadow-md">
+          <div key={i} className="bg-white border-b-4 border-b-blue-600 border border-slate-200 p-3 rounded-xl shadow-sm min-w-[100px] text-center">
             <div className="text-[10px] text-slate-400 font-bold">{h.date}</div>
             <div className="text-xl font-black text-blue-700">{h.score}</div>
           </div>
@@ -113,11 +110,11 @@ export default function MdaSimulator() {
           <h1 className="text-2xl font-bold text-slate-800">✚ סימולטור מע"ר</h1>
           <div className="flex items-center gap-3">
             {isActive && (
-              <button onClick={() => setIsPaused(!isPaused)} className="px-3 py-1 bg-slate-100 rounded-md text-xs font-bold text-slate-500 hover:bg-slate-200 transition">
+              <button onClick={() => setIsPaused(!isPaused)} className="px-3 py-1 bg-orange-100 text-orange-600 rounded-md text-xs font-bold shadow-sm active:scale-95">
                 {isPaused ? 'המשך ▶' : 'עצור ⏸'}
               </button>
             )}
-            <div className={`text-xl font-mono font-bold px-4 py-1 rounded-full border shadow-sm transition-all ${isPaused ? 'bg-orange-50 border-orange-200 text-orange-600' : 'bg-blue-50 border-blue-100 text-blue-700'}`}>
+            <div className={`text-xl font-mono font-bold px-4 py-1 rounded-full border shadow-sm ${isPaused ? 'bg-orange-50 border-orange-200 text-orange-600' : 'bg-blue-50 border-blue-100 text-blue-700'}`}>
               {formatTime(seconds)}
             </div>
           </div>
@@ -149,7 +146,7 @@ export default function MdaSimulator() {
               disabled={isPaused || !isActive}
               onChange={e => setInput(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && sendMessage(input)}
-              placeholder={isPaused ? "הסימולציה בעצירה..." : "תאר פעולה או בקש מדד..."}
+              placeholder={isPaused ? "הסימולציה בעצירה..." : "תאר פעולה..."}
               className="flex-1 border border-slate-200 rounded-xl px-4 py-4 focus:outline-none focus:ring-2 focus:ring-blue-500 text-lg shadow-inner disabled:bg-slate-50"
             />
             <button 

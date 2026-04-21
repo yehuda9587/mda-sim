@@ -17,12 +17,13 @@ export async function POST(req: NextRequest) {
       systemInstruction: systemPrompt,
     });
 
-    // וידוא שההיסטוריה תמיד מתחילה ב-user
+    // וידוא היסטוריה תקינה לגוגל
     const history = messages.slice(0, -1).map(m => ({
       role: m.role === 'assistant' ? 'model' : 'user',
       parts: [{ text: m.content }],
     }));
 
+    // הסרת הודעות מודל מהתחלת ההיסטוריה
     while (history.length > 0 && history[0].role !== 'user') {
       history.shift();
     }
