@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
   try {
     const { messages, mode } = await req.json() as { messages: Message[]; mode: 'א' | 'ב' };
     
-    // סינון הודעות שרק מציגות הוראות ב-UI כדי לא לבלבל את המודל
+    // סינון הודעות UI כדי שהמודל יקבל היסטוריה רפואית נקייה
     const chatMessages = messages.filter(m => !m.content.startsWith("הוראות תפעול:"));
 
     const systemPrompt = buildSystemPrompt(mode || 'א', chatMessages);
@@ -20,13 +20,13 @@ export async function POST(req: NextRequest) {
       systemInstruction: systemPrompt,
     });
 
-    // המרה לפורמט של גוגל
-    const history = chatMessages.slice(0, -1).map(m => ({
+    // המרה לפורמט של גוגל (user/model)
+    let history = chatMessages.slice(0, -1).map(m => ({
       role: m.role === 'assistant' ? 'model' : 'user',
       parts: [{ text: m.content }],
     }));
 
-    // וידוא שההיסטוריה מתחילה ב-user (חובה בגוגל)
+    // תיקון Role: מוודאים שההיסטוריה תמיד מתחילה ב-user
     while (history.length > 0 && history[0].role !== 'user') {
       history.shift();
     }
@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
       },
     }), { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
   } catch (err: any) {
-    console.error("API Error:", err);
+    console.error("Gemini API Error:", err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
