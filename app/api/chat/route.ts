@@ -10,22 +10,22 @@ export const maxDuration = 60;
 export async function POST(req: NextRequest) {
   try {
     const { messages, mode } = await req.json() as { messages: Message[]; mode: 'א' | 'ב' };
-    const systemPrompt = buildSystemPrompt(mode || 'ב', messages);
+    const systemPrompt = buildSystemPrompt(mode || 'א', messages);
 
     const model = genAI.getGenerativeModel({ 
       model: "gemini-2.5-flash",
       systemInstruction: systemPrompt,
     });
 
-    // מסדרים את ההיסטוריה עבור גוגל
+    // תיקון ה-Role Error: מסדרים את ההיסטוריה שגוגל תבין
     let history = messages.slice(0, -1).map(m => ({
       role: m.role === 'assistant' ? 'model' : 'user',
       parts: [{ text: m.content }],
     }));
 
-    // גוגל דורשת שההיסטוריה תתחיל ב-User
+    // חובה: ההודעה הראשונה בהיסטוריה חייבת להיות 'user'
     if (history.length > 0 && history[0].role === 'model') {
-      history.shift();
+      history.shift(); 
     }
 
     const lastMessage = messages[messages.length - 1].content;
@@ -33,23 +33,19 @@ export async function POST(req: NextRequest) {
     const result = await chat.sendMessageStream(lastMessage);
 
     const encoder = new TextEncoder();
-    const stream = new ReadableStream({
-      async start(controller) {
-        try {
+    return new Response(
+      new ReadableStream({
+        async start(controller) {
           for await (const chunk of result.stream) {
             const text = chunk.text();
             if (text) controller.enqueue(encoder.encode(text));
           }
           controller.close();
-        } catch (err) { controller.error(err); }
-      },
-    });
-
-    return new Response(stream, {
-      headers: { 'Content-Type': 'text/plain; charset=utf-8' },
-    });
-
+        },
+      }),
+      { headers: { 'Content-Type': 'text/plain; charset=utf-8' } }
+    );
   } catch (err: any) {
-    return NextResponse.json({ error: 'Connection error', details: err.message }, { status: 500 });
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }

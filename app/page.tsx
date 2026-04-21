@@ -44,18 +44,18 @@ export default function MdaSimulator() {
   };
 
   const startScenario = async () => {
-    const instructions = "הוראות תפעול: אני הולך ליצור עבורך מקרה, ועליך לנהל את המקרה מתחילתו ועד סופו, תפעל על פי סכמת פצוע טראומה, חולה, מה שמתאים למקרה. תבצע את כל הפעולות הנדרשות לזהות ולטפל במקרה, ובסופו תגיד מה האבחנה המשוערת ותגיד שסיימת, לאחר מכן תקבל את הסכמה המושלמת למקרה, וציון על מה שעשית עם טיפים לשיפור.";
+    const instr = "הוראות תפעול: אני הולך ליצור עבורך מקרה, ועליך לנהל את המקרה מתחילתו ועד סופו, תפעל על פי סכמת פצוע טראומה, חולה, מה שמתאים למקרה. תבצע את כל הפעולות הנדרשות לזהות ולטפל במקרה, ובסופו תגיד מה האבחנה המשוערת ותגיד שסיימת, לאחר מכן תקבל את הסכמה המושלמת למקרה, וציון על מה שעשית עם טיפים לשיפור.";
     
-    setMessages([{ role: 'assistant', content: instructions }]);
+    setMessages([{ role: 'assistant', content: instr }]);
     setSeconds(0);
     setIsActive(true);
     setIsPaused(false);
 
-    // הזנקת המקרה הראשון מה-AI
+    // הזנקה ראשונה כ-User כדי למנוע את שגיאת ה-Role
     const res = await fetch('/api/chat', {
       method: 'POST',
       body: JSON.stringify({ 
-        messages: [{ role: 'assistant', content: instructions }, { role: 'user', content: 'התחל תרחיש' }], 
+        messages: [{ role: 'assistant', content: instr }, { role: 'user', content: 'התחל תרחיש' }], 
         mode: 'א' 
       }),
     });
@@ -101,8 +101,6 @@ export default function MdaSimulator() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans p-4 flex flex-col items-center">
-      
-      {/* היסטוריית ציונים */}
       <div className="w-full max-w-2xl mb-4 flex gap-3 overflow-x-auto py-2 no-scrollbar">
         {history.map((h, i) => (
           <div key={i} className="bg-white border-b-4 border-b-blue-600 border border-slate-200 p-3 rounded-xl shadow-sm min-w-[100px] text-center">
@@ -153,13 +151,13 @@ export default function MdaSimulator() {
               disabled={isPaused || !isActive}
               onChange={e => setInput(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && sendMessage(input)}
-              placeholder={isPaused ? "הסימולציה בעצירה..." : "תאר פעולה..."}
+              placeholder={isPaused ? "הסימולציה בעצירה..." : "תאר פעולה או בקש מדד..."}
               className="flex-1 border border-slate-200 rounded-xl px-4 py-4 focus:outline-none focus:ring-2 focus:ring-blue-500 text-lg shadow-inner"
             />
             <button 
               onClick={() => sendMessage(input)} 
               disabled={isPaused || !isActive}
-              className="bg-slate-900 text-white px-8 py-2 rounded-xl font-bold hover:bg-slate-800 disabled:bg-slate-300 transition-all"
+              className="bg-slate-900 text-white px-8 py-2 rounded-xl font-bold hover:bg-slate-800 disabled:bg-slate-300 transition-all shadow-md"
             >
               שלח
             </button>
