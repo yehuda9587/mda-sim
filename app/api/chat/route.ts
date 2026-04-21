@@ -5,25 +5,27 @@ import { buildSystemPrompt, Message } from '@/lib/system-prompt';
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
 export const runtime = 'nodejs';
+export const maxDuration = 60; // מבטיח שדוח הסיכום לא יקטע באמצע
 
 export async function POST(req: NextRequest) {
   try {
     const { messages, mode } = await req.json() as { messages: Message[]; mode: 'א' | 'ב' };
     const systemPrompt = buildSystemPrompt(mode || 'ב', messages);
 
+    // חוזרים ל-2.5 פלאש כמו שביקשת
     const model = genAI.getGenerativeModel({ 
-      model: "gemini-1.5-flash", // השתמש ב-1.5 ליציבות מקסימלית
+      model: "gemini-2.5-flash",
       systemInstruction: systemPrompt,
     });
 
-    // תיקון השגיאה: מסננים את ההיסטוריה כך שתתחיל תמיד ב-User
-    let history = messages.slice(0, -1)
-      .map(m => ({
-        role: m.role === 'user' ? 'user' : 'model',
-        parts: [{ text: m.content }],
-      }));
+    // תיקון קריטי: Gemini מחייב שההיסטוריה תתחיל ב-user
+    // אנחנו מסננים את הודעת הפתיחה של הבוחן כדי שהצ'אט לא יקרוס
+    let history = messages.slice(0, -1).map(m => ({
+      role: m.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: m.content }],
+    }));
 
-    // אם ההודעה הראשונה היא של המודל, אנחנו מורידים אותה מההיסטוריה הרשמית
+    // אם ההודעה הראשונה בהיסטוריה היא של המודל, נסיר אותה
     if (history.length > 0 && history[0].role === 'model') {
       history.shift();
     }
@@ -42,7 +44,9 @@ export async function POST(req: NextRequest) {
             if (text) controller.enqueue(encoder.encode(text));
           }
           controller.close();
-        } catch (err) { controller.error(err); }
+        } catch (err) {
+          controller.error(err);
+        }
       },
     });
 
@@ -52,6 +56,9 @@ export async function POST(req: NextRequest) {
 
   } catch (err: any) {
     console.error('Gemini Error:', err);
-    return NextResponse.json({ error: 'Connection error', details: err.message }, { status: 500 });
+    return NextResponse.json({ 
+      error: 'Connection error', 
+      details: err.message 
+    }, { status: 500 });
   }
 }
