@@ -4,31 +4,27 @@ import { buildSystemPrompt, Message } from '@/lib/system-prompt';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
-export const runtime = 'nodejs';
-export const maxDuration = 60;
-
 export async function POST(req: NextRequest) {
   try {
     const { messages, mode } = await req.json() as { messages: Message[]; mode: 'א' | 'ב' };
-    const systemPrompt = buildSystemPrompt(mode || 'א', messages);
+    const chatMessages = messages.filter(m => !m.content.startsWith("הוראות תפעול:"));
+    const systemPrompt = buildSystemPrompt(mode || 'א', chatMessages);
 
     const model = genAI.getGenerativeModel({ 
       model: "gemini-2.5-flash", 
-      systemInstruction: systemPrompt,
+      systemInstruction: systemPrompt 
     });
 
-    // מיפוי להיסטוריה שגוגל אוהבת
-    let history = messages.slice(0, -1).map(m => ({
+    let history = chatMessages.slice(0, -1).map(m => ({
       role: m.role === 'assistant' ? 'model' : 'user',
       parts: [{ text: m.content }],
     }));
 
-    // תיקון Role: גוגל חייבת להתחיל ב-User
     while (history.length > 0 && history[0].role !== 'user') {
       history.shift();
     }
 
-    const lastMessage = messages[messages.length - 1]?.content || "התחל תרחיש";
+    const lastMessage = chatMessages[chatMessages.length - 1]?.content || "התחל תרחיש";
     const chat = model.startChat({ history });
     const result = await chat.sendMessageStream(lastMessage);
 
@@ -36,7 +32,11 @@ export async function POST(req: NextRequest) {
     return new Response(new ReadableStream({
       async start(controller) {
         for await (const chunk of result.stream) {
-          const text = chunk.text();
+          let text = chunk.text();
+          // סינון אגרסיבי של בלוקי מחשבה אם הם דולפים
+          text = text.replace(/THOUGHT:?[\s\S]*?\n\n/gi, "");
+          text = text.replace(/<thought>[\s\S]*?<\/thought>/gi, "");
+          
           if (text) controller.enqueue(encoder.encode(text));
         }
         controller.close();
