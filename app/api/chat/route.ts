@@ -7,21 +7,20 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 export async function POST(req: NextRequest) {
   try {
     const { messages, mode } = await req.json() as { messages: Message[]; mode: 'א' | 'ב' };
-    
-    // בונים פרומפט על בסיס כל ההודעות
     const systemPrompt = buildSystemPrompt(mode || 'א', messages);
+
     const model = genAI.getGenerativeModel({ 
       model: "gemini-2.5-flash", 
       systemInstruction: systemPrompt 
     });
 
-    // המרה לפורמט גוגל - שומרים על כל ההיסטוריה!
+    // בניית היסטוריה שגוגל מבינה
     let history = messages.slice(0, -1).map(m => ({
       role: m.role === 'assistant' ? 'model' : 'user',
       parts: [{ text: m.content }],
     }));
 
-    // מוודאים שמתחיל ב-User
+    // וידוא שההיסטוריה תמיד מתחילה ב-User
     while (history.length > 0 && history[0].role !== 'user') {
       history.shift();
     }
@@ -35,9 +34,8 @@ export async function POST(req: NextRequest) {
       async start(controller) {
         for await (const chunk of result.stream) {
           let text = chunk.text();
-          // סינון טוטאלי של מחשבות פנימיות
-          text = text.replace(/THOUGHT:?[\s\S]*?\n\n/gi, "");
-          text = text.replace(/<thought>[\s\S]*?<\/thought>/gi, "");
+          // סינון אגרסיבי של שאריות מחשבה אם דלפו
+          text = text.replace(/THOUGHT:?[\s\S]*?\n\n/gi, "").replace(/<thought>[\s\S]*?<\/thought>/gi, "");
           if (text) controller.enqueue(encoder.encode(text));
         }
         controller.close();
