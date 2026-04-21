@@ -10,25 +10,24 @@ export const maxDuration = 60;
 export async function POST(req: NextRequest) {
   try {
     const { messages, mode } = await req.json() as { messages: Message[]; mode: 'א' | 'ב' };
-    const systemPrompt = buildSystemPrompt(mode || 'א', messages);
+    
+    // סינון הודעות שאינן חלק מהצ'אט הרשמי (כמו הודעת ההוראות ב-UI)
+    const chatMessages = messages.filter(m => m.content !== "" && !m.content.startsWith("הוראות תפעול:"));
 
+    const systemPrompt = buildSystemPrompt(mode || 'א', chatMessages);
     const model = genAI.getGenerativeModel({ 
       model: "gemini-2.5-flash",
       systemInstruction: systemPrompt,
     });
 
-    // תיקון ה-Role Error: מסדרים את ההיסטוריה שגוגל תבין
-    let history = messages.slice(0, -1).map(m => ({
+    // מיפוי להיסטוריה של גוגל: user -> model -> user
+    const history = chatMessages.slice(0, -1).map(m => ({
       role: m.role === 'assistant' ? 'model' : 'user',
       parts: [{ text: m.content }],
     }));
 
-    // חובה: ההודעה הראשונה בהיסטוריה חייבת להיות 'user'
-    if (history.length > 0 && history[0].role === 'model') {
-      history.shift(); 
-    }
+    const lastMessage = chatMessages[chatMessages.length - 1].content;
 
-    const lastMessage = messages[messages.length - 1].content;
     const chat = model.startChat({ history });
     const result = await chat.sendMessageStream(lastMessage);
 
@@ -46,6 +45,7 @@ export async function POST(req: NextRequest) {
       { headers: { 'Content-Type': 'text/plain; charset=utf-8' } }
     );
   } catch (err: any) {
+    console.error(err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }

@@ -11,7 +11,7 @@ export default function MdaSimulator() {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const saved = localStorage.getItem('mda_history_v2');
+    const saved = localStorage.getItem('mda_history_v3');
     if (saved) setHistory(JSON.parse(saved));
   }, []);
 
@@ -36,7 +36,7 @@ export default function MdaSimulator() {
       const newEntry = { date: new Date().toLocaleDateString('he-IL'), score };
       setHistory(prev => {
         const updated = [newEntry, ...prev].slice(0, 5);
-        localStorage.setItem('mda_history_v2', JSON.stringify(updated));
+        localStorage.setItem('mda_history_v3', JSON.stringify(updated));
         return updated;
       });
       setIsActive(false);
@@ -46,16 +46,17 @@ export default function MdaSimulator() {
   const startScenario = async () => {
     const instr = "הוראות תפעול: אני הולך ליצור עבורך מקרה, ועליך לנהל את המקרה מתחילתו ועד סופו, תפעל על פי סכמת פצוע טראומה, חולה, מה שמתאים למקרה. תבצע את כל הפעולות הנדרשות לזהות ולטפל במקרה, ובסופו תגיד מה האבחנה המשוערת ותגיד שסיימת, לאחר מכן תקבל את הסכמה המושלמת למקרה, וציון על מה שעשית עם טיפים לשיפור.";
     
+    // מציגים הוראות ב-UI אבל לא שולחים אותן ל-API כהיסטוריה
     setMessages([{ role: 'assistant', content: instr }]);
     setSeconds(0);
     setIsActive(true);
     setIsPaused(false);
 
-    // הזנקה ראשונה כ-User כדי למנוע את שגיאת ה-Role
+    // הזנקה ראשונה רק עם הודעת User
     const res = await fetch('/api/chat', {
       method: 'POST',
       body: JSON.stringify({ 
-        messages: [{ role: 'assistant', content: instr }, { role: 'user', content: 'התחל תרחיש' }], 
+        messages: [{ role: 'user', content: 'התחל תרחיש' }], 
         mode: 'א' 
       }),
     });
@@ -65,13 +66,17 @@ export default function MdaSimulator() {
   const sendMessage = async (text: string) => {
     if (!text.trim() || isPaused) return;
     const userMsg = { role: 'user', content: text };
-    const newMessages = [...messages, userMsg];
-    setMessages(newMessages);
+    
+    // בונים את ההיסטוריה ללא הודעת ההוראות הסטטית
+    const currentMessages = messages.filter(m => !m.content.startsWith("הוראות תפעול:"));
+    const newMessagesForAPI = [...currentMessages, userMsg];
+    
+    setMessages(prev => [...prev, userMsg]);
     setInput('');
 
     const res = await fetch('/api/chat', {
       method: 'POST',
-      body: JSON.stringify({ messages: newMessages, mode: 'א' }),
+      body: JSON.stringify({ messages: newMessagesForAPI, mode: 'א' }),
     });
     handleStream(res);
   };
@@ -101,6 +106,7 @@ export default function MdaSimulator() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans p-4 flex flex-col items-center">
+      {/* היסטוריה */}
       <div className="w-full max-w-2xl mb-4 flex gap-3 overflow-x-auto py-2 no-scrollbar">
         {history.map((h, i) => (
           <div key={i} className="bg-white border-b-4 border-b-blue-600 border border-slate-200 p-3 rounded-xl shadow-sm min-w-[100px] text-center">
@@ -157,7 +163,7 @@ export default function MdaSimulator() {
             <button 
               onClick={() => sendMessage(input)} 
               disabled={isPaused || !isActive}
-              className="bg-slate-900 text-white px-8 py-2 rounded-xl font-bold hover:bg-slate-800 disabled:bg-slate-300 transition-all shadow-md"
+              className="bg-slate-900 text-white px-8 py-2 rounded-xl font-bold hover:bg-slate-800 shadow-md disabled:bg-slate-300 transition-all shadow-md"
             >
               שלח
             </button>
