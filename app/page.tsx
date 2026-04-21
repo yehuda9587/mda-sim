@@ -32,14 +32,27 @@ export default function MdaSimulator() {
 
   // --- פונקציית עזר לחילוץ ציון ושמירה (התוספת הקריטית) ---
   const extractAndSaveScore = (text: string) => {
-    const scoreMatch = text.match(/ציון:\s*(\d+)/) || text.match(/ציון\s*(\d+)/);
-    if (scoreMatch) {
-      const score = parseInt(scoreMatch[1]);
-      const newEntry = {
-        date: new Date().toLocaleDateString('he-IL'),
-        score: score,
-        scenario: "תרחיש מע\"ר"
-      };
+  // Regex משופר שיודע למצוא ציון גם אם ה-AI כותב "הציון הוא 90" או "ציון: 90"
+  const scoreMatch = text.match(/(?:ציון|הציון הוא|הציון):\s*(\d+)/);
+  
+  if (scoreMatch) {
+    const score = parseInt(scoreMatch[1]);
+    const newEntry = {
+      date: new Date().toLocaleDateString('he-IL'),
+      score: score,
+      scenario: "תרחיש מע\"ר"
+    };
+
+    // שימוש ב-prev כדי לוודא שאנחנו לא דורסים היסטוריה קיימת
+    setHistory(prev => {
+      const updated = [newEntry, ...prev].slice(0, 5);
+      localStorage.setItem('mda_simulator_history', JSON.stringify(updated));
+      return updated;
+    });
+    
+    setIsActive(false); // עוצר את הטיימר
+  }
+};
       
       const updatedHistory = [newEntry, ...history].slice(0, 5);
       setHistory(updatedHistory);
