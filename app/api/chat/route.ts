@@ -2,32 +2,31 @@ import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { buildSystemPrompt, Message } from '@/lib/system-prompt';
 
-// ודא שהמפתח החדש (מה-Project החדש) מוזן ב-Vercel
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
 export const runtime = 'nodejs';
-export const maxDuration = 60; // מוסיף זמן ריצה לפונקציה
 
 export async function POST(req: NextRequest) {
   try {
-    if (!process.env.GEMINI_API_KEY) {
-      return NextResponse.json({ error: 'API Key missing' }, { status: 500 });
-    }
-
     const { messages, mode } = await req.json() as { messages: Message[]; mode: 'א' | 'ב' };
     const systemPrompt = buildSystemPrompt(mode || 'ב', messages);
 
-    // שימוש במודל היציב מהרשימה שלך
     const model = genAI.getGenerativeModel({ 
-      model: "gemini-2.5-flash",
+      model: "gemini-1.5-flash", // השתמש ב-1.5 ליציבות מקסימלית
       systemInstruction: systemPrompt,
     });
 
-    // המרה לפורמט של גוגל (user/model)
-    const history = messages.slice(0, -1).map(m => ({
-      role: m.role === 'user' ? 'user' : 'model',
-      parts: [{ text: m.content }],
-    }));
+    // תיקון השגיאה: מסננים את ההיסטוריה כך שתתחיל תמיד ב-User
+    let history = messages.slice(0, -1)
+      .map(m => ({
+        role: m.role === 'user' ? 'user' : 'model',
+        parts: [{ text: m.content }],
+      }));
+
+    // אם ההודעה הראשונה היא של המודל, אנחנו מורידים אותה מההיסטוריה הרשמית
+    if (history.length > 0 && history[0].role === 'model') {
+      history.shift();
+    }
 
     const lastMessage = messages[messages.length - 1].content;
 
@@ -43,9 +42,7 @@ export async function POST(req: NextRequest) {
             if (text) controller.enqueue(encoder.encode(text));
           }
           controller.close();
-        } catch (err) {
-          controller.error(err);
-        }
+        } catch (err) { controller.error(err); }
       },
     });
 
@@ -54,10 +51,7 @@ export async function POST(req: NextRequest) {
     });
 
   } catch (err: any) {
-    console.error('Gemini API Error:', err);
-    return NextResponse.json({ 
-      error: 'Connection error', 
-      details: err.message 
-    }, { status: 500 });
+    console.error('Gemini Error:', err);
+    return NextResponse.json({ error: 'Connection error', details: err.message }, { status: 500 });
   }
 }
