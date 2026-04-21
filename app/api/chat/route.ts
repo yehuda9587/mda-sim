@@ -6,6 +6,7 @@ import { buildSystemPrompt, Message } from '@/lib/system-prompt';
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
 export const runtime = 'nodejs';
+export const maxDuration = 60; // מוסיף זמן ריצה לפונקציה
 
 export async function POST(req: NextRequest) {
   try {
