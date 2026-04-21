@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
 
     const systemPrompt = buildSystemPrompt(mode || 'א', chatMessages);
     const model = genAI.getGenerativeModel({ 
-      model: "gemini-1.5-flash", // המודל היציב ביותר לסטרימינג כרגע
+      model: "gemini-2.5-flash", // המודל היציב ביותר לסטרימינג כרגע
       systemInstruction: systemPrompt,
     });
 
