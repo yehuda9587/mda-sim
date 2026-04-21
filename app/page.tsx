@@ -24,10 +24,11 @@ export default function MdaSimulator() {
   }, [messages]);
 
   const startScenario = () => {
-    setMessages([{ role: 'assistant', content: 'הגעת לזירה, מה ההתרשמות הראשונית שלך?' }]);
-    setSeconds(0);
-    setIsActive(true);
-  };
+  setMessages([]); // מנקה הכל
+  setSeconds(0);
+  setIsActive(true);
+  sendMessage("התחל תרחיש"); // זה יגרום ל-AI להוציא את המשפט הראשון שלו לפי ה-Prompt החדש
+};
 
   const sendMessage = async (text: string) => {
     const userMsg = { role: 'user', content: text };
