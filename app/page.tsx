@@ -6,7 +6,7 @@ export default function MdaSimulator() {
   const [input, setInput] = useState('');
   const [seconds, setSeconds] = useState(0);
   const [isActive, setIsActive] = useState(false);
-  const [isPaused, setIsPaused] = useState(false); // כפתור עצירה
+  const [isPaused, setIsPaused] = useState(false);
   const [history, setHistory] = useState<{ date: string, score: number }[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -15,7 +15,6 @@ export default function MdaSimulator() {
     if (saved) setHistory(JSON.parse(saved));
   }, []);
 
-  // טיימר עם תמיכה בעצירה
   useEffect(() => {
     let interval: any = null;
     if (isActive && !isPaused) {
@@ -35,58 +34,66 @@ export default function MdaSimulator() {
     if (scoreMatch) {
       const score = parseInt(scoreMatch[1]);
       const newEntry = { date: new Date().toLocaleDateString('he-IL'), score };
-      
       setHistory(prev => {
         const updated = [newEntry, ...prev].slice(0, 5);
         localStorage.setItem('mda_history_v2', JSON.stringify(updated));
         return updated;
       });
       setIsActive(false);
-      setIsPaused(false);
     }
   };
 
-  const startScenario = () => {
-    setMessages([]);
+  const startScenario = async () => {
+    const instructions = "הוראות תפעול: אני הולך ליצור עבורך מקרה, ועליך לנהל את המקרה מתחילתו ועד סופו, תפעל על פי סכמת פצוע טראומה, חולה, מה שמתאים למקרה. תבצע את כל הפעולות הנדרשות לזהות ולטפל במקרה, ובסופו תגיד מה האבחנה המשוערת ותגיד שסיימת, לאחר מכן תקבל את הסכמה המושלמת למקרה, וציון על מה שעשית עם טיפים לשיפור.";
+    
+    setMessages([{ role: 'assistant', content: instructions }]);
     setSeconds(0);
     setIsActive(true);
     setIsPaused(false);
-    sendMessage("התחל תרחיש. תאר לי מה אני רואה בזירה.");
+
+    // הזנקת המקרה הראשון מה-AI
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      body: JSON.stringify({ 
+        messages: [{ role: 'assistant', content: instructions }, { role: 'user', content: 'התחל תרחיש' }], 
+        mode: 'א' 
+      }),
+    });
+    handleStream(res);
   };
 
   const sendMessage = async (text: string) => {
-    if (!text.trim() || isPaused) return; // לא שולח הודעות בזמן עצירה
+    if (!text.trim() || isPaused) return;
     const userMsg = { role: 'user', content: text };
     const newMessages = [...messages, userMsg];
     setMessages(newMessages);
     setInput('');
 
-    try {
-      const res = await fetch('/api/chat', {
-        method: 'POST',
-        body: JSON.stringify({ messages: newMessages, mode: 'א' }),
-      });
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      body: JSON.stringify({ messages: newMessages, mode: 'א' }),
+    });
+    handleStream(res);
+  };
 
-      const reader = res.body?.getReader();
-      let assistantText = "";
-      setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
+  const handleStream = async (res: Response) => {
+    const reader = res.body?.getReader();
+    let assistantText = "";
+    setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
 
-      if (reader) {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) {
-            extractAndSaveScore(assistantText);
-            break;
-          }
-          assistantText += new TextDecoder().decode(value);
-          setMessages(prev => {
-            const last = prev[prev.length - 1];
-            return [...prev.slice(0, -1), { ...last, content: assistantText }];
-          });
+    if (reader) {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) {
+          extractAndSaveScore(assistantText);
+          break;
         }
+        assistantText += new TextDecoder().decode(value);
+        setMessages(prev => {
+          const last = prev[prev.length - 1];
+          return [...prev.slice(0, -1), { ...last, content: assistantText }];
+        });
       }
-    } catch (err) {
-      console.error(err);
     }
   };
 
@@ -95,7 +102,7 @@ export default function MdaSimulator() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans p-4 flex flex-col items-center">
       
-      {/* לוח היסטוריה */}
+      {/* היסטוריית ציונים */}
       <div className="w-full max-w-2xl mb-4 flex gap-3 overflow-x-auto py-2 no-scrollbar">
         {history.map((h, i) => (
           <div key={i} className="bg-white border-b-4 border-b-blue-600 border border-slate-200 p-3 rounded-xl shadow-sm min-w-[100px] text-center">
@@ -107,19 +114,14 @@ export default function MdaSimulator() {
 
       <div className="w-full max-w-2xl bg-white shadow-sm border border-slate-200 rounded-2xl p-6 mb-4">
         <div className="flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-            <span className="text-red-600">✚</span> סימולטור מע"ר
-          </h1>
+          <h1 className="text-2xl font-bold text-slate-800">✚ סימולטור מע"ר</h1>
           <div className="flex items-center gap-3">
             {isActive && (
-              <button 
-                onClick={() => setIsPaused(!isPaused)} 
-                className={`px-3 py-1 rounded-md text-xs font-bold transition ${isPaused ? 'bg-orange-100 text-orange-600' : 'bg-slate-100 text-slate-500'}`}
-              >
+              <button onClick={() => setIsPaused(!isPaused)} className="px-3 py-1 bg-slate-100 rounded-md text-xs font-bold text-slate-500">
                 {isPaused ? 'המשך ▶' : 'עצור ⏸'}
               </button>
             )}
-            <div className={`text-xl font-mono font-bold px-4 py-1 rounded-full border shadow-sm transition ${isPaused ? 'bg-orange-50 border-orange-200 text-orange-600 animate-pulse' : 'bg-blue-50 border-blue-100 text-blue-700'}`}>
+            <div className={`text-xl font-mono font-bold px-4 py-1 rounded-full border shadow-sm ${isPaused ? 'bg-orange-50 border-orange-200 text-orange-600' : 'bg-blue-50 border-blue-100 text-blue-700'}`}>
               {formatTime(seconds)}
             </div>
           </div>
@@ -131,7 +133,7 @@ export default function MdaSimulator() {
         )}
       </div>
 
-      <div className="w-full max-w-2xl flex-1 bg-white shadow-sm border border-slate-200 rounded-2xl overflow-hidden flex flex-col mb-4 relative">
+      <div className="w-full max-w-2xl flex-1 bg-white shadow-sm border border-slate-200 rounded-2xl overflow-hidden flex flex-col mb-4">
         <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50/20">
           {messages.map((m, i) => (
             <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
@@ -144,40 +146,20 @@ export default function MdaSimulator() {
           <div ref={scrollRef} />
         </div>
 
-        {/* Quick Options - הוזזו למעלה והוגדלו */}
-        {isActive && (
-          <div className="p-4 border-t border-slate-100 bg-white/80 backdrop-blur-sm z-10">
-            <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
-              {['בדיקת בטיחות', 'בדיקת הכרה', 'התרשמות כללית', 'מה הדופק?', 'מה לחץ הדם?', 'סיימתי טיפול'].map(a => (
-                <button 
-                  key={a} 
-                  disabled={isPaused}
-                  onClick={() => sendMessage(a)} 
-                  className={`whitespace-nowrap border-2 px-5 py-2.5 rounded-xl text-sm font-black transition shadow-sm active:scale-95 ${
-                    isPaused ? 'bg-slate-50 border-slate-100 text-slate-300' : 'bg-white border-blue-100 text-blue-700 hover:border-blue-500 hover:bg-blue-50'
-                  }`}
-                >
-                  {a}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
         <div className="p-4 border-t border-slate-200 bg-white">
           <div className="flex gap-2">
             <input 
               value={input} 
-              disabled={isPaused}
+              disabled={isPaused || !isActive}
               onChange={e => setInput(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && sendMessage(input)}
               placeholder={isPaused ? "הסימולציה בעצירה..." : "תאר פעולה..."}
-              className="flex-1 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-50 disabled:cursor-not-allowed"
+              className="flex-1 border border-slate-200 rounded-xl px-4 py-4 focus:outline-none focus:ring-2 focus:ring-blue-500 text-lg shadow-inner"
             />
             <button 
               onClick={() => sendMessage(input)} 
-              disabled={isPaused}
-              className="bg-slate-900 text-white px-8 py-3 rounded-xl font-bold hover:bg-slate-800 transition shadow-md disabled:bg-slate-300"
+              disabled={isPaused || !isActive}
+              className="bg-slate-900 text-white px-8 py-2 rounded-xl font-bold hover:bg-slate-800 disabled:bg-slate-300 transition-all"
             >
               שלח
             </button>
