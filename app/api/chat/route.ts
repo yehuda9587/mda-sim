@@ -10,26 +10,26 @@ export const maxDuration = 60;
 export async function POST(req: NextRequest) {
   try {
     const { messages, mode } = await req.json() as { messages: Message[]; mode: 'א' | 'ב' };
-    
-    // סינון הודעות UI שלא צריכות לעבור למודל
-    const chatMessages = messages.filter(m => !m.content.startsWith("הוראות תפעול:"));
+    const systemPrompt = buildSystemPrompt(mode || 'א', messages);
 
-    const systemPrompt = buildSystemPrompt(mode || 'א', chatMessages);
     const model = genAI.getGenerativeModel({ 
-      model: "gemini-2.5-flash", // המודל היציב ביותר לסטרימינג כרגע
+      model: "gemini-2.5-flash", 
       systemInstruction: systemPrompt,
     });
 
-    // גוגל דורשת להתחיל ב-User. אנחנו לוקחים את ההיסטוריה ללא ההודעה האחרונה.
-    const history = chatMessages.slice(0, -1).map(m => ({
+    // הפיכת ההודעות לפורמט של גוגל (user/model)
+    const history = messages.slice(0, -1).map(m => ({
       role: m.role === 'assistant' ? 'model' : 'user',
       parts: [{ text: m.content }],
     }));
 
-    // וידוא שההיסטוריה מתחילה ב-User (אם יש כזו)
-    if (history.length > 0 && history[0].role === 'model') history.shift();
+    // תיקון קריטי: אם ההיסטוריה לא מתחילה ב-user, ננקה אותה עד ה-user הראשון
+    // זה מונע את שגיאת ה-"First content should be with role 'user'"
+    while (history.length > 0 && history[0].role !== 'user') {
+      history.shift();
+    }
 
-    const lastMessage = chatMessages[chatMessages.length - 1].content;
+    const lastMessage = messages[messages.length - 1].content;
     const chat = model.startChat({ history });
     const result = await chat.sendMessageStream(lastMessage);
 
