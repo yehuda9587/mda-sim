@@ -10,24 +10,45 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { messages, scenario } = body;
     
-    // נעילת תרחיש: אם קיבלנו סנריו מהפרונטנד - משתמשים בו. אם לא - מגרילים.
+    // שימוש בתרחיש קיים מהפרונטנד כדי למנוע החלפת פצוע
     const activeScenario = scenario || getRandomScenario();
     const systemPrompt = buildSystemPrompt(activeScenario);
     
-    const model = genAI.getGenerativeModel({ 
-      model: 'gemini-2.0-flash', 
-      systemInstruction: systemPrompt,
-      generationConfig: { temperature: 0.1 } // טמפרטורה נמוכה מאוד למניעת "הזיות" ושינויי פצועים
-    });
+    // היררכיית המודלים המקורית שלך
+    const MODELS = [
+      { name: 'gemini-2.5-flash' },
+      { name: 'gemini-2.0-flash' },
+      { name: 'gemini-2.5-flash-lite' },
+      { name: 'gemma-4-31b-it' }
+    ];
 
-    const isFirstMessage = messages.length === 1;
-    const history = messages.slice(0, -1).map((m: any) => ({
-      role: m.role === 'assistant' || m.role === 'model' ? 'model' : 'user',
-      parts: [{ text: m.content.replace(/^הוראות תפעול:[^\n]*\n\n/, '').trim() }]
-    }));
+    let streamResult: any = null;
+    for (const modelInfo of MODELS) {
+      try {
+        const model = genAI.getGenerativeModel({ 
+          model: modelInfo.name, 
+          systemInstruction: systemPrompt,
+          generationConfig: { temperature: 0.1 } as any // יציבות מקסימלית
+        });
+        
+        const history = messages.slice(0, -1).map((m: any) => ({
+          role: m.role === 'assistant' || m.role === 'model' ? 'model' : 'user',
+          parts: [{ text: m.content.replace(/^הוראות תפעול:[^\n]*\n\n/, '').trim() }]
+        }));
 
-    const chat = model.startChat({ history: history.length > 0 && history[0].role === 'user' ? history : [] });
-    const result = await chat.sendMessageStream(messages[messages.length - 1].content);
+        const chat = model.startChat({ 
+          history: history.length > 0 && history[0].role === 'user' ? history : [] 
+        });
+        
+        streamResult = await chat.sendMessageStream(messages[messages.length - 1].content);
+        break; 
+      } catch (e) {
+        console.warn(`[MDA] Fallback from ${modelInfo.name}...`);
+        continue;
+      }
+    }
+
+    if (!streamResult) throw new Error("כל המודלים נכשלו בטעינה.");
 
     const encoder = new TextEncoder();
     const headers: HeadersInit = { 'Content-Type': 'text/plain; charset=utf-8' };
@@ -36,10 +57,10 @@ export async function POST(req: NextRequest) {
     return new Response(new ReadableStream({
       async start(controller) {
         try {
-          if (isFirstMessage) controller.enqueue(encoder.encode(INJECTED_PREFIX));
+          if (messages.length === 1) controller.enqueue(encoder.encode(INJECTED_PREFIX));
           
           let buffer = "";
-          for await (const chunk of result.stream) {
+          for await (const chunk of streamResult.stream) {
             buffer += chunk.text();
             if (buffer.includes(' ') || buffer.includes('\n')) {
               const clean = sanitize(buffer);
