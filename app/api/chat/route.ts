@@ -6,7 +6,7 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
 const INJECTED_PREFIX = "הוראות תפעול: נהל את המקרה לפי ABCDE. לסיום כתוב 'סיימתי'.\n\n";
 
-// ─── ניקוי דליפות חשיבה ──────────────────────────────────────────────────────
+// ─── ניקוי דליפות חשיבה ו-JSON ──────────────────────────────────────────────
 const LEAK_PATTERNS: RegExp[] = [
   /THOUGHT:[^\n]*/gi,
   /Reasoning:[^\n]*/gi,
@@ -16,20 +16,6 @@ const LEAK_PATTERNS: RegExp[] = [
 
 function sanitize(text: string): string {
   return LEAK_PATTERNS.reduce((t, re) => t.replace(re, ''), text).trim();
-}
-
-/**
- * חילוץ תיאור המקרה בלבד מהודעה שעלולה להכיל מטא-דאטה של המודל
- */
-function extractCaseDescription(raw: string): string {
-  const lines = raw.split('\n').filter(l => {
-    const trimmed = l.trim();
-    return trimmed.length > 0 && !/^(Role|Scenario|Constraint|Sentence|Draft|Age|Gender|Position|Main|Detail|Treatment|Wait|Two|Note|Check)/i.test(trimmed);
-  });
-  
-  if (lines.length === 0) return raw.trim();
-  // מחזיר את החלק האחרון של הטקסט שלרוב מכיל את התיאור הפיזי
-  return lines.slice(-3).join('\n').trim();
 }
 
 function stripInjected(text: string): string {
@@ -64,46 +50,45 @@ export async function POST(req: NextRequest) {
     const isFirstMessage = messages.length === 1;
 
     const geminiPrompt = isFirstMessage
-      ? 'תאר את המקרה הרפואי: גיל, מין, תנוחה, ומצוקה בולטת. שני משפטים קצרים בלבד.'
+      ? 'תאר את המקרה: גיל, מין, תנוחה, ומצוקה עיקרית. שני משפטים בלבד.'
       : messages[messages.length - 1].content;
 
-    // ─── רשימת מודלים 2.0 בלבד ──────────────────────────────────────────────
+    // ─── דירוג מודלים לפי הבקשה שלך (2026 Stack) ──────────────────────────────
     const MODELS = [
-      { 
-        name: 'gemini-2.0-flash-thinking-preview-01-21', 
-        config: { thinkingConfig: { includeThinkingProcess: false, thinkingBudget: 16000 } } 
-      },
-      { name: 'gemini-2.0-flash', config: {} },
-      { name: 'gemini-2.0-flash-exp', config: {} },
+      { name: 'gemini-2.5-flash', config: {} },           // Main Logic
+      { name: 'gemini-2.0-flash', config: {} },           // Fallback
+      { name: 'gemini-2.5-flash-lite', config: {} },      // Heavy Load
+      { name: 'gemma-4-31b-it', config: {} },             // Backup (Non-Gemini)
     ];
 
     let streamResult: any = null;
-    let errors: string[] = [];
+    let usedModel = "";
 
     for (const { name: modelName, config } of MODELS) {
       try {
         const m = genAI.getGenerativeModel({ 
           model: modelName, 
           systemInstruction: systemPrompt,
-          generationConfig: config as any // עקיפת Type Error ב-Build
+          generationConfig: config as any 
         });
         
         const chat = m.startChat({ history });
         streamResult = await chat.sendMessageStream(geminiPrompt);
-        console.log(`[MDA] Handled by: ${modelName}`);
+        usedModel = modelName;
+        console.log(`[MDA] Deployed: ${modelName}`);
         break;
       } catch (e: any) {
-        errors.push(`${modelName}: ${e.message}`);
-        console.warn(`[MDA] ${modelName} failed, switching...`);
+        console.warn(`[MDA] ${modelName} unavailable, cascading...`);
       }
     }
 
-    if (!streamResult) {
-      throw new Error(`כל המודלים נכשלו. פירוט: ${errors.join(' | ')}`);
-    }
+    if (!streamResult) throw new Error('System Overload: All medical AI nodes failed.');
 
     const encoder = new TextEncoder();
-    const headers: HeadersInit = { 'Content-Type': 'text/plain; charset=utf-8' };
+    const headers: HeadersInit = { 
+      'Content-Type': 'text/plain; charset=utf-8',
+      'X-Used-Model': usedModel 
+    };
     if (!body.scenario) headers['X-Scenario'] = encodeURIComponent(JSON.stringify(scenario));
 
     return new Response(
@@ -113,8 +98,9 @@ export async function POST(req: NextRequest) {
             if (isFirstMessage) {
               let full = '';
               for await (const chunk of streamResult.stream) { full += chunk.text(); }
-              const finalCase = extractCaseDescription(sanitize(full));
-              controller.enqueue(encoder.encode(INJECTED_PREFIX + finalCase));
+              // ניקוי דליפות Gemma אם הגיבוי הופעל
+              const cleanCase = sanitize(full).split('\n').slice(-2).join('\n');
+              controller.enqueue(encoder.encode(INJECTED_PREFIX + cleanCase));
             } else {
               for await (const chunk of streamResult.stream) {
                 const clean = sanitize(chunk.text());
@@ -129,7 +115,7 @@ export async function POST(req: NextRequest) {
     );
 
   } catch (err: any) {
-    console.error('[MDA API ERROR]', err.message);
+    console.error('[MDA CRITICAL]', err.message);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
