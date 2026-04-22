@@ -93,13 +93,25 @@ export async function POST(req: NextRequest) {
       ? 'תאר את המקרה: גיל, מין, תנוחה, מצוקה עיקרית. שני משפטים בלבד.'
       : messages[messages.length - 1].content;
 
-    // Primary: gemini-2.5-flash / Backup: gemini-2.0-flash
-    const MODELS = ['gemini-2.5-flash', 'gemma-4-31b-it'];
+    // Primary: gemini-2.5-flash (thinking disabled) / Backup: gemma-4-31b-it
+    const MODELS = [
+      { name: 'gemini-2.5-flash',  thinkingBudget: 0 },
+      { name: 'gemma-4-31b-it',    thinkingBudget: undefined },
+    ];
     let streamResult: any = null;
 
-    for (const modelName of MODELS) {
+    for (const { name: modelName, thinkingBudget } of MODELS) {
       try {
-        const m = genAI.getGenerativeModel({ model: modelName, systemInstruction: systemPrompt });
+        const generationConfig: any = {};
+        if (thinkingBudget !== undefined) {
+          // כיבוי thinking ב-2.5-flash — מונע דליפת מחשבות פנימיות
+          generationConfig.thinkingConfig = { thinkingBudget };
+        }
+        const m = genAI.getGenerativeModel({
+          model: modelName,
+          systemInstruction: systemPrompt,
+          generationConfig,
+        });
         const chat = m.startChat({ history });
         streamResult = await chat.sendMessageStream(geminiPrompt);
         console.log('[MDA] using', modelName);
@@ -107,7 +119,7 @@ export async function POST(req: NextRequest) {
       } catch (e: any) {
         const code = String(e?.status ?? e?.message ?? '');
         const isTransient = code.includes('503') || code.includes('429') || code.includes('404');
-        if (!isTransient || modelName === MODELS[MODELS.length - 1]) throw e;
+        if (!isTransient || modelName === MODELS[MODELS.length - 1].name) throw e;
         console.warn('[MDA]', modelName, 'failed, trying backup');
       }
     }
