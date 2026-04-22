@@ -5,6 +5,7 @@ export default function MdaSimulator() {
   const [messages, setMessages] = useState<{ role: string, content: string }[]>([]);
   const [input, setInput] = useState('');
   const [isActive, setIsActive] = useState(false);
+  const [currentScenario, setCurrentScenario] = useState<any>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -13,12 +14,19 @@ export default function MdaSimulator() {
 
   const startScenario = async () => {
     setMessages([]);
-    setIsActive(true); // זה יעלים את הכפתור ויציג את ה-input
+    setCurrentScenario(null);
+    setIsActive(true);
+    
     const res = await fetch('/api/chat', {
       method: 'POST',
       body: JSON.stringify({ messages: [{ role: 'user', content: 'התחל תרחיש' }] }),
     });
-    handleStream(res);
+
+    if (res.ok) {
+      const scenarioHeader = res.headers.get('X-Scenario');
+      if (scenarioHeader) setCurrentScenario(JSON.parse(decodeURIComponent(scenarioHeader)));
+      handleStream(res);
+    }
   };
 
   const sendMessage = async (text: string) => {
@@ -27,9 +35,13 @@ export default function MdaSimulator() {
     const updated = [...messages, userMsg];
     setMessages(updated);
     setInput('');
+
     const res = await fetch('/api/chat', {
       method: 'POST',
-      body: JSON.stringify({ messages: updated }),
+      body: JSON.stringify({ 
+        messages: updated, 
+        scenario: currentScenario // המפתח לנעילת התרחיש!
+      }),
     });
     handleStream(res);
   };
@@ -48,7 +60,6 @@ export default function MdaSimulator() {
           return [...prev.slice(0, -1), { ...last, content: assistantText }];
         });
       }
-      // אם התקבל ציון סופי, מאפשרים להתחיל תרחיש חדש
       if (assistantText.includes("ציון סופי")) setIsActive(false);
     }
   };
@@ -75,18 +86,12 @@ export default function MdaSimulator() {
 
         <div className="p-4 bg-[#0f172a]/50 border-t border-slate-700">
           {!isActive ? (
-            <button onClick={startScenario} className="w-full bg-blue-600 hover:bg-blue-500 text-white py-4 rounded-xl font-bold text-lg transition-all active:scale-95">
+            <button onClick={startScenario} className="w-full bg-blue-600 hover:bg-blue-500 text-white py-4 rounded-xl font-bold text-lg transition-all active:scale-95 shadow-lg">
               התחל תרחיש חדש 🚑
             </button>
           ) : (
             <div className="flex gap-2">
-              <input 
-                value={input} 
-                onChange={e => setInput(e.target.value)} 
-                onKeyDown={e => e.key === 'Enter' && sendMessage(input)} 
-                placeholder="..." 
-                className="flex-1 bg-[#334155] border border-slate-600 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+              <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendMessage(input)} placeholder="..." className="flex-1 bg-[#334155] border border-slate-600 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-slate-500" />
               <button onClick={() => sendMessage(input)} className="bg-blue-600 px-6 py-3 rounded-xl font-bold">שלח</button>
             </div>
           )}
