@@ -16,8 +16,8 @@ function sanitize(text: string): string {
 }
 
 function stripInjectedInstructions(text: string): string {
-  // מסיר את שורת ההוראות שהשרת הזריק — גמיני לא צריך לראות אותה בהיסטוריה
-  return text.replace(/^הוראות תפעול:.*?\n\n/s, '').trim();
+  // החלפנו את .*? בדגל /s ל-[\s\S]*? שעובד בכל גרסה
+  return text.replace(/^הוראות תפעול:[\s\S]*?\n\n/, '').trim();
 }
 
 function buildGeminiHistory(messages: Message[]): Content[] {
