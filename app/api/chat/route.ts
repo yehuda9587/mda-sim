@@ -4,63 +4,24 @@ import { buildSystemPrompt, getRandomScenario, Message } from '@/lib/system-prom
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
-const INJECTED_PREFIX = "הוראות תפעול: נהל את המקרה לפי ABCDE. לסיום כתוב 'סיימתי'.\n\n";
-
-// ─── ניקוי דליפות חשיבה ──────────────────────────────────────────────────────
-const LEAK_PATTERNS = [
-  /THOUGHT:?[\s\S]*?(?=\n\n|\n[א-ת]|$)/gi,
-  /Reasoning:?[\s\S]*?(?=\n\n|\n[א-ת]|$)/gi,
-  /<thought>[\s\S]*?<\/thought>/gi,
-  /```json[\s\S]*?```/g
-];
-
 function sanitize(text: string): string {
-  let cleaned = text;
-  LEAK_PATTERNS.forEach(re => {
-    cleaned = cleaned.replace(re, ' '); 
-  });
-  return cleaned.replace(/\s+/g, ' ').trim();
+  return text
+    .replace(/THOUGHT:?[\s\S]*?(?=\n\n|\n[א-ת]|$)/gi, "")
+    .replace(/<thought>[\s\S]*?<\/thought>/gi, "")
+    .replace(/```json[\s\S]*?```/g, "")
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
-function stripInjected(text: string): string {
-  return text.replace(/^הוראות תפעול:[^\n]*\n\n/, '').trim();
-}
-
-function buildGeminiHistory(messages: Message[]): Content[] {
-  const raw = messages.slice(0, -1)
-    .map(m => {
-      const isModel = m.role === 'assistant' || m.role === 'model';
-      return { 
-        role: (isModel ? 'model' : 'user') as 'user' | 'model', 
-        parts: [{ text: isModel ? stripInjected(m.content) : m.content }] 
-      };
-    })
-    .filter(m => m.parts[0].text.trim().length > 0);
-  
-  while (raw.length > 0 && raw[0].role !== 'user') raw.shift();
-  return raw;
-}
-
-// ─── Handler הראשי ──────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { messages } = body;
     
-    // שליפת התרחיש (חובה שהפרונטנד ישלח את ה-scenario בכל בקשה כדי לשמור על עקביות)
+    // שליפת התרחיש (חשוב: הפרונטנד צריך לשלוח את ה-scenario בכל בקשה!)
     const scenario = body.scenario || getRandomScenario();
-    if (!scenario) throw new Error("No scenario found");
-
-    const systemPrompt = buildSystemPrompt(scenario) + 
-      "\nCRITICAL: Stay in character. Use spaces. No thoughts.";
+    const systemPrompt = buildSystemPrompt(scenario);
     
-    const history = buildGeminiHistory(messages);
-    const isFirstMessage = messages.length === 1;
-    const userPrompt = isFirstMessage 
-      ? 'תאר את המקרה: גיל, מין, תנוחה, מצוקה בולטת. שני משפטים קצרים.' 
-      : messages[messages.length - 1].content;
-
-    // ─── היררכיית המודלים המדויקת שלך ───────────────────────────────────────
     const MODELS = [
       { name: 'gemini-2.5-flash', config: { temperature: 0.1 } },
       { name: 'gemini-2.0-flash', config: { temperature: 0.1 } },
@@ -69,8 +30,6 @@ export async function POST(req: NextRequest) {
     ];
 
     let streamResult: any = null;
-    let lastError = null;
-
     for (const modelInfo of MODELS) {
       try {
         const model = genAI.getGenerativeModel({ 
@@ -79,51 +38,45 @@ export async function POST(req: NextRequest) {
           generationConfig: modelInfo.config as any
         });
         
-        const chat = model.startChat({ history });
-        streamResult = await chat.sendMessageStream(userPrompt);
-        console.log(`[MDA] Success with: ${modelInfo.name}`);
-        break; 
-      } catch (e: any) {
-        console.warn(`[MDA] ${modelInfo.name} failed, trying fallback...`);
-        lastError = e;
+        const history = messages.slice(0, -1).map((m: any) => ({
+          role: m.role === 'assistant' || m.role === 'model' ? 'model' : 'user',
+          parts: [{ text: m.content.replace(/^הוראות תפעול:[^\n]*\n\n/, '').trim() }]
+        }));
+
+        const chat = model.startChat({ 
+            history: history.length > 0 && history[0].role === 'user' ? history : [] 
+        });
+        
+        streamResult = await chat.sendMessageStream(messages[messages.length - 1].content);
+        break;
+      } catch (e) {
+        console.warn(`[MDA] Falling back from ${modelInfo.name}`);
+        continue;
       }
     }
 
-    if (!streamResult) throw lastError || new Error("All AI nodes failed.");
-
     const encoder = new TextEncoder();
-    return new Response(
-      new ReadableStream({
+    return new Response(new ReadableStream({
         async start(controller) {
           try {
-            let buffer = ""; 
+            let buffer = "";
             for await (const chunk of streamResult.stream) {
               buffer += chunk.text();
-              
-              if (buffer.includes('\n') || buffer.length > 60) {
+              if (buffer.length > 60 || buffer.includes('\n')) {
                 const clean = sanitize(buffer);
                 if (clean) {
                   controller.enqueue(encoder.encode(clean + " "));
-                  buffer = ""; 
+                  buffer = "";
                 }
               }
             }
-            if (buffer) {
-              const final = sanitize(buffer);
-              if (final) {
-                controller.enqueue(encoder.encode(isFirstMessage ? INJECTED_PREFIX + final : final));
-              }
-            }
+            if (buffer) controller.enqueue(encoder.encode(sanitize(buffer)));
             controller.close();
-          } catch (e) { 
-            controller.error(e); 
-          }
+          } catch (e) { controller.error(e); }
         }
-      }),
-      { headers: { 'Content-Type': 'text/plain; charset=utf-8' } }
+      }), { headers: { 'Content-Type': 'text/plain; charset=utf-8' } }
     );
   } catch (err: any) {
-    console.error('[MDA API ERROR]', err.message);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }

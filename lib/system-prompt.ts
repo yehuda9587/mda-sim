@@ -5,38 +5,42 @@ export interface Message {
   content: string;
 }
 
+// הגרלת תרחיש - תומך גם ב-scenarios וגם ב-trauma_mechanisms
 export function getRandomScenario() {
-  const scenarios = (medicalData as any).scenarios || [];
-  if (scenarios.length === 0) return null;
-  return scenarios[Math.floor(Math.random() * scenarios.length)];
+  const data = medicalData as any;
+  const pool = [...(data.scenarios || []), ...(data.trauma_mechanisms || [])];
+  if (pool.length === 0) return null;
+  return pool[Math.floor(Math.random() * pool.length)];
 }
 
 export function buildSystemPrompt(scenario: any): string {
-  if (!scenario) return "אתה בוחן מד\"א. המקרה לא נטען כראוי.";
+  if (!scenario) return "אתה בוחן מד\"א. חלה שגיאה בטעינת התרחיש.";
 
-  // חילוץ נתונים בטוח למניעת שגיאת 500
-  const profile = scenario.patient_profile || {};
-  const description = profile.description || scenario.description || "אין תיאור זמין";
-  const age = profile.age || scenario.age || "לא ידוע";
-  const gender = profile.gender || scenario.gender || "לא ידוע";
-  const state = profile.initial_state || scenario.initial_state || "לא ידוע";
-  const vitals = scenario.vitals || {};
+  // חילוץ נתונים מה-JSON החדש ששלחת
+  const name = scenario.name || "לא ידוע";
+  const desc = scenario.description || "אין תיאור";
+  const signs = scenario.signs ? scenario.signs.join(", ") : "אין סימנים ספציפיים";
+  const treatment = scenario.treatment ? scenario.treatment.join(", ") : "לפי סכמה רגילה";
+  
+  // מדדי ייחוס מה-JSON (נורמה)
+  const reference = (medicalData as any).reference || {};
 
-  return `אתה בוחן סימולציה רפואית קשוחה של מד"א. תפקידך להציג תוצאות של פעולות מטפל (מע"ר).
+  return `אתה בוחן בכיר במד"א (רמת פאראמדיק/מדריך). אתה מנהל סימולציה רפואית למע"ר.
 
---- הפצוע הנבחר (נתון קשיח): ---
-תיאור: ${description}
-גיל: ${age}, מין: ${gender}
-מצב הכרה: ${state}
-מדדים קליניים: ${JSON.stringify(vitals)}
+--- תרחיש נעול (זה המקרה היחיד!): ---
+שם המקרה: ${name}
+תיאור למטפל: ${desc}
+סימנים קליניים שהמטפל יגלה: ${signs}
+טיפול מצופה: ${treatment}
 
---- חוקי הבוחן: ---
-1. **היצמדות למקרה:** זה הפצוע היחיד בשיחה. אל תמציא פצוע חדש ואל תחזור על הוראות.
-2. **תגובה בלבד:** תאר רק את תוצאות הפעולה של המשתמש. אל תשאל שאלות.
-3. **בדיקת סייפטי:** כשנשאל "סייפטי?", תאר זירה בטוחה שתואמת את התיאור.
-4. **שפה:** עברית מקצועית של מד"א בלבד.
-5. **מחשבות:** אל תכתוב THOUGHT, Reasoning או JSON.
+--- הנחיות פעולה (יהרג ובל יעבור): ---
+1. **דיבור ישיר:** אל תכתוב "הבוחן אומר" או "THOUGHT". תאר רק את המציאות.
+2. **מניעת הזיות:** אל תחליף פצוע באמצע! אם התחלנו עם ${name}, זה נשאר ${name} עד הסוף.
+3. **תגובה לפעולה:** כשהמשתמש עושה פעולה (למשל "סייפטי"), תאר את תוצאת הפעולה לפי המקרה.
+4. **מדדים:** השתמש במדדים הנורמליים של מד"א כבסיס: ${JSON.stringify(reference.normal_vitals)}. אם המקרה הוא הלם, תאר דופק מהיר ולחץ דם יורד.
+5. **איסור שאלות:** אל תשאל "מה אתה עושה עכשיו?". פשוט חכה להודעה של המשתמש.
+6. **מבנה:** השב קצר (1-3 משפטים). השתמש ברווחים בין מילים עבריות!
 
---- פורמט תשובה: ---
-משפט או שניים המתארים את הממצא הפיזי בעקבות הפעולה.`;
+--- פתיחת תרחיש: ---
+תאר את הפצוע ב-2 משפטים קצרים וקליניים.`;
 }
