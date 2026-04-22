@@ -87,24 +87,32 @@ export async function POST(req: NextRequest) {
     const scenario = body.scenario ?? getRandomScenario();
     const systemPrompt = buildSystemPrompt(scenario);
 
-    const model = genAI.getGenerativeModel({
-      model: 'gemini-2.5-flash',
-      systemInstruction: systemPrompt,
-    });
-
-    // הודעה ראשונה: messages = [{role:'user', content:'התחל תרחיש'}]
     const isFirstMessage = messages.length === 1;
-
     const history = buildGeminiHistory(messages);
-    const lastContent = messages[messages.length - 1].content;
-
-    // גמיני מקבל בקשה נקייה בהודעה ראשונה — ללא הוראות
     const geminiPrompt = isFirstMessage
       ? 'תאר את המקרה: גיל, מין, תנוחה, מצוקה עיקרית. שני משפטים בלבד.'
-      : lastContent;
+      : messages[messages.length - 1].content;
 
-    const chat = model.startChat({ history });
-    const streamResult = await chat.sendMessageStream(geminiPrompt);
+    // Primary: gemini-2.5-flash / Backup: gemini-2.0-flash
+    const MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash'];
+    let streamResult: any = null;
+
+    for (const modelName of MODELS) {
+      try {
+        const m = genAI.getGenerativeModel({ model: modelName, systemInstruction: systemPrompt });
+        const chat = m.startChat({ history });
+        streamResult = await chat.sendMessageStream(geminiPrompt);
+        console.log('[MDA] using', modelName);
+        break;
+      } catch (e: any) {
+        const code = String(e?.status ?? e?.message ?? '');
+        const isTransient = code.includes('503') || code.includes('429') || code.includes('404');
+        if (!isTransient || modelName === MODELS[MODELS.length - 1]) throw e;
+        console.warn('[MDA]', modelName, 'failed, trying backup');
+      }
+    }
+
+    if (!streamResult) throw new Error('All models unavailable');
 
     // ─── Streaming ───────────────────────────────────────────────────────────
     const encoder = new TextEncoder();
