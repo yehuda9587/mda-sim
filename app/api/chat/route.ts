@@ -88,7 +88,7 @@ export async function POST(req: NextRequest) {
     const systemPrompt = buildSystemPrompt(scenario);
 
     const model = genAI.getGenerativeModel({
-      model: 'gemini-1.5-flash',   // יציב, נרחב, זמין
+      model: 'gemini-2.0-flash',
       systemInstruction: systemPrompt,
     });
 
