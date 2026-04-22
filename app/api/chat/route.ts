@@ -94,7 +94,7 @@ export async function POST(req: NextRequest) {
       : messages[messages.length - 1].content;
 
     // Primary: gemini-2.5-flash / Backup: gemini-2.0-flash
-    const MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash'];
+    const MODELS = ['gemini-2.5-flash', 'gemma-4-31b-it'];
     let streamResult: any = null;
 
     for (const modelName of MODELS) {
