@@ -6,43 +6,30 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
 const INJECTED_PREFIX = "הוראות תפעול: נהל את המקרה לפי ABCDE. לסיום כתוב 'סיימתי'.\n\n";
 
-// ─── ניקוי דליפות (תואם es2015 ומעלה) ────────────────────────────────────────
+// ─── ניקוי דליפות חשיבה ──────────────────────────────────────────────────────
 const LEAK_PATTERNS: RegExp[] = [
   /THOUGHT:[^\n]*/gi,
   /Reasoning:[^\n]*/gi,
   /<thought>[\s\S]*?<\/thought>/gi,
   /```json[\s\S]*?```/g,
-  /```[\s\S]*?```/g,
 ];
 
 function sanitize(text: string): string {
   return LEAK_PATTERNS.reduce((t, re) => t.replace(re, ''), text).trim();
 }
 
+/**
+ * חילוץ תיאור המקרה בלבד מהודעה שעלולה להכיל מטא-דאטה של המודל
+ */
 function extractCaseDescription(raw: string): string {
-  const META_LINE = /^\s*(\*|\-|•)\s+/;
-  const META_WORD = /^(Role|Scenario|Constraint|Sentence|Draft|Age|Gender|Position|Main|Detail|Treatment|Wait|Two|No\s|Yes|Let|Pick|Prompt|Here|Note|Check)/i;
-  const PARENS    = /^\s*\(/;
-  const EMPTY     = /^\s*$/;
-
-  const lines = raw.split('\n');
-  const clean = lines.filter(l =>
-    !EMPTY.test(l) &&
-    !META_LINE.test(l) &&
-    !META_WORD.test(l.trim()) &&
-    !PARENS.test(l)
-  );
-
-  if (clean.length === 0) return raw.trim();
-
-  const lastChunk = clean.slice(-3).join('\n').trim();
-
-  const half = Math.floor(lastChunk.length / 2);
-  const firstHalf = lastChunk.slice(0, half).trim();
-  const secondHalf = lastChunk.slice(half).trim();
-  if (firstHalf && secondHalf.startsWith(firstHalf)) return firstHalf;
-
-  return lastChunk;
+  const lines = raw.split('\n').filter(l => {
+    const trimmed = l.trim();
+    return trimmed.length > 0 && !/^(Role|Scenario|Constraint|Sentence|Draft|Age|Gender|Position|Main|Detail|Treatment|Wait|Two|Note|Check)/i.test(trimmed);
+  });
+  
+  if (lines.length === 0) return raw.trim();
+  // מחזיר את החלק האחרון של הטקסט שלרוב מכיל את התיאור הפיזי
+  return lines.slice(-3).join('\n').trim();
 }
 
 function stripInjected(text: string): string {
@@ -50,82 +37,74 @@ function stripInjected(text: string): string {
 }
 
 function buildGeminiHistory(messages: Message[]): Content[] {
-  const slice = messages.slice(0, -1);
-
-  const raw: Content[] = slice
+  const raw = messages.slice(0, -1)
     .map(m => {
       const isModel = m.role === 'assistant' || m.role === 'model';
-      const text = isModel ? stripInjected(m.content) : m.content;
-      return { role: isModel ? 'model' : 'user', text: text.trim() };
+      return { 
+        role: (isModel ? 'model' : 'user') as 'user' | 'model', 
+        parts: [{ text: isModel ? stripInjected(m.content) : m.content }] 
+      };
     })
-    .filter(m => m.text.length > 0)
-    .map(m => ({ role: m.role as 'user' | 'model', parts: [{ text: m.text }] }));
-
+    .filter(m => m.parts[0].text.trim().length > 0);
+  
   while (raw.length > 0 && raw[0].role !== 'user') raw.shift();
-
-  const merged: Content[] = [];
-  for (const item of raw) {
-    const prev = merged[merged.length - 1];
-    if (prev && prev.role === item.role) {
-      prev.parts.push({ text: '\n' + item.parts[0].text });
-    } else {
-      merged.push({ role: item.role, parts: [...item.parts] });
-    }
-  }
-  return merged;
+  return raw;
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json() as { messages: Message[]; scenario?: any | null };
+    const body = await req.json();
     const { messages } = body;
 
-    if (!messages?.length) {
-      return NextResponse.json({ error: 'No messages' }, { status: 400 });
-    }
+    if (!messages?.length) return NextResponse.json({ error: 'No messages' }, { status: 400 });
 
-    const isNewScenario = !body.scenario;
-    const isFirstMessage = messages.length === 1;
     const scenario = body.scenario ?? getRandomScenario();
     const systemPrompt = buildSystemPrompt(scenario);
-
     const history = buildGeminiHistory(messages);
+    const isFirstMessage = messages.length === 1;
+
     const geminiPrompt = isFirstMessage
-      ? 'תאר את המקרה: גיל, מין, תנוחה, מצוקה עיקרית. שני משפטים בלבד.'
+      ? 'תאר את המקרה הרפואי: גיל, מין, תנוחה, ומצוקה בולטת. שני משפטים קצרים בלבד.'
       : messages[messages.length - 1].content;
 
-    // ─── בחירת מודל עם Fallback ו-Type bypass ─────────────────────────────────
+    // ─── רשימת מודלים 2.0 בלבד ──────────────────────────────────────────────
     const MODELS = [
-      { name: 'gemini-2.0-flash-thinking-preview-01-21', config: { thinkingConfig: { includeThinkingProcess: false, thinkingBudget: 16000 } } },
+      { 
+        name: 'gemini-2.0-flash-thinking-preview-01-21', 
+        config: { thinkingConfig: { includeThinkingProcess: false, thinkingBudget: 16000 } } 
+      },
       { name: 'gemini-2.0-flash', config: {} },
-      { name: 'gemini-1.5-flash', config: {} },
+      { name: 'gemini-2.0-flash-exp', config: {} },
     ];
 
     let streamResult: any = null;
+    let errors: string[] = [];
+
     for (const { name: modelName, config } of MODELS) {
       try {
-        // שימוש ב-as any פותר את שגיאת ה-Build של ה-thinkingConfig
         const m = genAI.getGenerativeModel({ 
           model: modelName, 
           systemInstruction: systemPrompt,
-          generationConfig: config as any 
+          generationConfig: config as any // עקיפת Type Error ב-Build
         });
         
         const chat = m.startChat({ history });
         streamResult = await chat.sendMessageStream(geminiPrompt);
-        console.log('[MDA] using', modelName);
+        console.log(`[MDA] Handled by: ${modelName}`);
         break;
       } catch (e: any) {
-        console.warn(`[MDA] ${modelName} failed, trying backup...`);
-        if (modelName === MODELS[MODELS.length - 1].name) throw e;
+        errors.push(`${modelName}: ${e.message}`);
+        console.warn(`[MDA] ${modelName} failed, switching...`);
       }
+    }
+
+    if (!streamResult) {
+      throw new Error(`כל המודלים נכשלו. פירוט: ${errors.join(' | ')}`);
     }
 
     const encoder = new TextEncoder();
     const headers: HeadersInit = { 'Content-Type': 'text/plain; charset=utf-8' };
-    if (isNewScenario) {
-      headers['X-Scenario'] = encodeURIComponent(JSON.stringify(scenario));
-    }
+    if (!body.scenario) headers['X-Scenario'] = encodeURIComponent(JSON.stringify(scenario));
 
     return new Response(
       new ReadableStream({
@@ -133,36 +112,24 @@ export async function POST(req: NextRequest) {
           try {
             if (isFirstMessage) {
               let full = '';
-              for await (const chunk of streamResult.stream) {
-                full += chunk.text();
-              }
-              const caseText = extractCaseDescription(sanitize(full));
-              controller.enqueue(encoder.encode(INJECTED_PREFIX + caseText));
+              for await (const chunk of streamResult.stream) { full += chunk.text(); }
+              const finalCase = extractCaseDescription(sanitize(full));
+              controller.enqueue(encoder.encode(INJECTED_PREFIX + finalCase));
             } else {
-              let buffer = '';
               for await (const chunk of streamResult.stream) {
-                buffer += chunk.text();
-                const lines = buffer.split('\n');
-                buffer = lines.pop() ?? '';
-                const clean = sanitize(lines.join('\n'));
-                if (clean) controller.enqueue(encoder.encode(clean + '\n'));
-              }
-              if (buffer) {
-                const clean = sanitize(buffer);
+                const clean = sanitize(chunk.text());
                 if (clean) controller.enqueue(encoder.encode(clean));
               }
             }
             controller.close();
-          } catch (e) {
-            controller.error(e);
-          }
+          } catch (e) { controller.error(e); }
         },
       }),
       { headers }
     );
 
   } catch (err: any) {
-    console.error('[MDA API ERROR]', err?.message ?? err);
-    return NextResponse.json({ error: err?.message ?? 'Unknown error' }, { status: 500 });
+    console.error('[MDA API ERROR]', err.message);
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
