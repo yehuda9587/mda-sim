@@ -88,7 +88,7 @@ export async function POST(req: NextRequest) {
     const systemPrompt = buildSystemPrompt(scenario);
 
     const model = genAI.getGenerativeModel({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-2.0-flash',
       systemInstruction: systemPrompt,
     });
 
@@ -149,7 +149,7 @@ export async function POST(req: NextRequest) {
     );
 
   } catch (err: any) {
-    console.error('[MDA API]', err?.message ?? err);
-    return NextResponse.json({ error: err?.message ?? 'Unknown error' }, { status: 500 });
+    console.error('[MDA API ERROR]', JSON.stringify({ message: err?.message, status: err?.status, details: err?.errorDetails }, null, 2));
+    return NextResponse.json({ error: err?.message ?? "Unknown error", detail: String(err) }, { status: 500 });
   }
 }
