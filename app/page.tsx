@@ -276,7 +276,7 @@ export default function MdaSimulator() {
                 disabled={paused || loading}
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(input); } }}
-                placeholder={paused ? 'הסימולציה מושהית' : loading ? 'ממתין לתשובה...' : 'תאר פעולה (סכימת ABCDE)...'}
+                placeholder={}
                 className="flex-1 bg-slate-800 border border-slate-600 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-40 text-sm placeholder:text-slate-500"
               />
               <button
