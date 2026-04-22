@@ -1,31 +1,43 @@
 import medicalData from './medical_data.json';
 
 export interface Message {
-  role: 'user' | 'assistant' | 'system' | 'model';
+  role: 'user' | 'assistant' | 'model';
   content: string;
 }
 
-export function buildSystemPrompt(mode: 'א' | 'ב', messages: Message[]): string {
-  const hasStarted = messages.some(m => m.role === 'assistant' || m.role === 'model');
+export function getRandomScenario(): object {
+  const data = medicalData as any;
+  const arr: any[] = Array.isArray(data)
+    ? data
+    : Array.isArray(data.scenarios)
+    ? data.scenarios
+    : Object.values(data).filter(v => typeof v === 'object');
 
-  return `אתה בוחן סימולציה רפואית של מד"א. המטפל הוא מע"ר.
+  if (!arr.length) throw new Error('medical_data.json is empty or unreadable');
+  return arr[Math.floor(Math.random() * arr.length)];
+}
 
---- חוקים שאינם ניתנים לשינוי (קריטי): ---
-1. **אל תכתוב THOUGHT או מחשבות.** דבּר רק אל המשתמש.
-2. **אל תציג קוד JSON.** השתמש בנתונים כדי לתאר מציאות במילים.
-3. **אל תשאל שאלות!** פשוט חכה לפעולה של המע"ר.
+/**
+ * System prompt חד-משמעי וללא לוגיקת פאזות.
+ * גמיני אינו מוסמך לכתוב "הוראות תפעול" — זו אחריות השרת בלבד.
+ */
+export function buildSystemPrompt(scenario: object): string {
+  const json = JSON.stringify(scenario, null, 2).slice(0, 2000);
 
---- תחילת תרחיש (רק פעם אחת): ---
-${!hasStarted ? `כאשר המשתמש כותב "התחל תרחיש", שלח הודעה במבנה הזה:
-**הוראות תפעול:**
-ציין פעולות לפי סכימת ABCDE. בסיום כתוב "סיימתי" לקבלת ציון.
+  return `אתה בוחן סימולציה רפואית של מד"א. המטפל הוא מע"ר בקורס 60.
 
-**תיאור המקרה:**
-(תיאור מפורט של גיל, מין, תנוחה וסביבה).` : `--- המשך טיפול ---
-תאר רק את תוצאות הפעולות ותגובות הפצוע. אל תחזור על ההוראות ואל תשנה את הפצוע.`}
+## תרחיש נעול — לא לשנות בשום מקרה
+${json}
 
---- סיום: ---
-רק כשהמשתמש כותב "סיימתי", תן דוח וציון: "ציון סופי: [מספר]".
+## כללי פלט מוחלטים
+✗ אסור לחלוטין: מחשבות פנימיות, THOUGHT, Reasoning, הסברים
+✗ אסור לחלוטין: קוד JSON, ערכים טכניים, נתונים גולמיים מהמקרה
+✗ אסור לחלוטין: הוראות תפעול — הן אינן בתפקידך בשום שלב
+✗ אסור לחלוטין: שאלות למטפל — תאר ממצאים בלבד
+✗ אסור לחלוטין: שינוי הפצוע, המיקום, הנתונים לאחר הצגתם הראשונה
 
-נתונים פנימיים: ${JSON.stringify(medicalData).slice(0, 1500)}`;
+## תפקידך
+בקשה ראשונה — תאר בדיוק שני משפטים: גיל, מין, תנוחה, מצוקה עיקרית.
+כל בקשה עוקבת — תאר תוצאות הפעולה לפי הנתונים הפיזיולוגיים של התרחיש.
+כשהמשתמש כותב "סיימתי" — פלט "ציון סופי: [מספר]/100" ומשוב קליני.`;
 }
