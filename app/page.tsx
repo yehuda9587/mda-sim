@@ -40,7 +40,7 @@ export default function MdaSimulator() {
       method: 'POST',
       body: JSON.stringify({ 
         messages: updated, 
-        scenario: currentScenario // המפתח לנעילת התרחיש!
+        scenario: currentScenario 
       }),
     });
     handleStream(res);
@@ -68,15 +68,16 @@ export default function MdaSimulator() {
     <div className="min-h-screen bg-[#0f172a] text-slate-200 p-4 flex flex-col items-center font-sans">
       <div className="w-full max-w-2xl bg-[#1e293b] shadow-2xl rounded-2xl p-6 mb-4 border border-slate-700">
         <h1 className="text-xl font-bold flex items-center gap-2">
-          <span className="text-blue-500">✚</span> סימולטור מע"ר
+          <span className="text-blue-500">✚</span> סימולטור מע"ר מד"א
         </h1>
       </div>
 
       <div className="w-full max-w-2xl flex-1 bg-[#1e293b] shadow-2xl rounded-2xl overflow-hidden flex flex-col border border-slate-700">
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
           {messages.map((m, i) => (
             <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
               <div className={`max-w-[85%] p-4 rounded-2xl shadow-lg ${m.role === 'user' ? 'bg-blue-600 text-white rounded-tr-none' : 'bg-[#334155] text-slate-100 rounded-tl-none border border-slate-600'}`}>
+                <div className="text-[10px] uppercase font-bold opacity-50 mb-1">{m.role === 'user' ? 'מע"ר' : 'בוחן'}</div>
                 <div className="whitespace-pre-wrap text-sm leading-relaxed">{m.content}</div>
               </div>
             </div>
@@ -92,7 +93,7 @@ export default function MdaSimulator() {
           ) : (
             <div className="flex gap-2">
               <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendMessage(input)} placeholder="..." className="flex-1 bg-[#334155] border border-slate-600 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-slate-500" />
-              <button onClick={() => sendMessage(input)} className="bg-blue-600 px-6 py-3 rounded-xl font-bold">שלח</button>
+              <button onClick={() => sendMessage(input)} className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-xl font-bold transition-colors">שלח</button>
             </div>
           )}
         </div>
