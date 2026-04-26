@@ -6,7 +6,6 @@ export const metadata: Metadata = {
   description: "אימון סכמת ABCDE",
 };
 
-// הגדרות Viewport למניעת זום ויישור למסך מלא
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,

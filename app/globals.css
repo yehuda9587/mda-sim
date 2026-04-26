@@ -14,16 +14,18 @@ html, body {
 
 /* קונטיינר גובה דינמי שמתחשב במקלדת */
 .h-dynamic {
-  height: 100dvh;
+  height: 100dvh; /* גובה דינמי שמתעדכן עם המקלדת */
   display: flex;
   flex-direction: column;
 }
 
-/* אזור הצ'אט - יתפוס את כל המקום הפנוי */
-.chat-container {
-  flex: 1;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch; /* גלילה חלקה ב-iOS */
+/* הסתרת פסי גלילה */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
 .pb-safe {
