@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
         const model = genAI.getGenerativeModel({ 
           model: modelInfo.name, 
           systemInstruction: systemPrompt,
-          generationConfig: { temperature: 0.1 } as any
+          generationConfig: { temperature: 0 } as any
         });
         
         const history = messages.slice(0, -1).map((m: any) => ({
