@@ -2,35 +2,57 @@
 @tailwind components;
 @tailwind utilities;
 
-/* נעילה הרמטית של המסך */
-html, body {
-  height: 100%;
-  width: 100%;
-  overflow: hidden;
-  position: fixed; /* מונע מהדפדפן להזיז את הדף כשהמקלדת נפתחת */
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  overscroll-behavior: none;
-  background-color: #020617;
+/* ─── Mobile-first layout lock ─────────────────────────────────────────────────
+   המטרה: layout שלא קופץ כשמקלדת נפתחת במובייל.
+   הפתרון: html+body תפוסים 100dvh בדיוק, ה-overflow נשאר בתוך .chat-area בלבד.
+   ──────────────────────────────────────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
 }
 
-/* קונטיינר בגובה המסך המדויק */
-.h-dynamic {
-  height: 100dvh; 
+html {
+  height: -webkit-fill-available; /* Safari fallback */
+  height: 100dvh;
+  overflow: hidden;
+}
+
+body {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+  background-color: #020617; /* slate-950 */
+  -webkit-font-smoothing: antialiased;
+}
+
+/* wrapper ראשי — ממלא בדיוק את גובה הviewport כולל safe-area */
+.app-shell {
   display: flex;
   flex-direction: column;
+  height: 100dvh;
+  height: -webkit-fill-available;
+  overflow: hidden;
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
-/* אזור הצ'אט - גלילה עצמאית */
-.chat-container {
-  flex: 1;
+/* אזור הצ'אט — הגמיש היחיד, הוא גולל */
+.chat-area {
+  flex: 1 1 0%;
   overflow-y: auto;
-  -webkit-overflow-scrolling: touch; /* גלילה חלקה ב-iOS */
-  overscroll-behavior-y: contain; /* נועל את הגלילה בתוך האלמנט בלבד */
+  overflow-x: hidden;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+  /* מונע scroll bounce על iOS שמבלבל את הheight */
+  scroll-behavior: smooth;
 }
 
-/* הסתרת פסי גלילה לעיצוב נקי */
+/* Header ו-Footer — נעולים, לא מתכווצים */
+.shell-header,
+.shell-footer {
+  flex: 0 0 auto;
+  position: relative;
+  z-index: 10;
+}
+
+/* no-scrollbar utility */
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
