@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 const BLOCKED_IPS = [
-  '1.2.3.4', // ⬅️ put the IPs you want to block here
+  '137.184.121.221', // ⬅️ put the IPs you want to block here
   '5.6.7.8',
 ]
 
