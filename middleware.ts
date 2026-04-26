@@ -17,7 +17,7 @@ export function middleware(request: NextRequest) {
 
   // Block logic
   if (BLOCKED_IPS.includes(ip)) {
-    return new NextResponse('🚫 Access denied', { status: 403 })
+    return new NextResponse(ip)
   }
 
   return NextResponse.next()
