@@ -15,7 +15,6 @@ const STORAGE_KEY = 'mda_sim_v5';
 const SCORE_RE = /ציון\s+סופי:\s*(\d+)/i;
 
 export default function MdaSimulator() {
-  // --- States ---
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [seconds, setSeconds] = useState(0);
@@ -30,7 +29,6 @@ export default function MdaSimulator() {
 
   const isActive = lockedScenario !== null || loading;
 
-  // טעינת היסטוריה
   useEffect(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
@@ -38,31 +36,19 @@ export default function MdaSimulator() {
     } catch {}
   }, []);
 
-  // ניהול טיימר
   useEffect(() => {
     if (!timerRunning || paused) return;
     const id = setInterval(() => setSeconds(s => s + 1), 1000);
     return () => clearInterval(id);
   }, [timerRunning, paused]);
 
-  // פונקציית גלילה לתחתית
-  const scrollToBottom = useCallback((smooth = true) => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto' });
-    }
-  }, []);
-
-  // גלילה אוטומטית בהודעות חדשות
   useEffect(() => {
-    scrollToBottom(true);
-  }, [messages, scrollToBottom]);
+    scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
 
-  // פונקציית תיקון "קפיצה" במובייל כשנפתחת המקלדת
-  const handleInputFocus = () => {
-    setTimeout(() => {
-      scrollToBottom(true);
-    }, 300); // השהייה קלה כדי לתת למקלדת זמן להיפתח
-  };
+  useEffect(() => {
+    if (isActive && !paused && !loading) inputRef.current?.focus();
+  }, [isActive, paused, loading, messages.length]);
 
   const fmt = (s: number) =>
     `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
@@ -78,18 +64,15 @@ export default function MdaSimulator() {
   const handleStream = useCallback(async (res: Response) => {
     const reader = res.body?.getReader();
     if (!reader) return;
-
     setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
     let full = '';
     const dec = new TextDecoder();
-
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
       full += dec.decode(value, { stream: true });
       setMessages(prev => [...prev.slice(0, -1), { role: 'assistant', content: full }]);
     }
-
     const m = full.match(SCORE_RE);
     if (m) {
       saveScore(parseInt(m[1], 10));
@@ -108,7 +91,6 @@ export default function MdaSimulator() {
     setPaused(false);
     setLockedScenario(null);
     setLoading(true);
-
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
@@ -133,7 +115,6 @@ export default function MdaSimulator() {
     setMessages(updated);
     setInput('');
     setLoading(true);
-
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
@@ -149,53 +130,42 @@ export default function MdaSimulator() {
   };
 
   return (
-    <div className="h-dynamic w-full max-w-2xl mx-auto flex flex-col bg-slate-950 relative overflow-hidden shadow-2xl">
+    /* h-dynamic ממלא את כל הגובה, w-full ממלא את כל הרוחב */
+    <div className="h-dynamic w-full bg-slate-950 flex flex-col overflow-hidden">
       
-      {/* Header - גובה קבוע */}
-      <header className="shrink-0 bg-slate-900 border-b border-slate-800 p-4 z-20">
-        <div className="flex justify-between items-center">
+      {/* Header - מוצמד למעלה */}
+      <header className="shrink-0 bg-slate-900/90 border-b border-slate-800 p-4 z-20">
+        <div className="flex justify-between items-center w-full">
           <div>
-            <h1 className="text-lg font-black text-white leading-none">✚ סימולטור מע"ר</h1>
-            <p className="text-[10px] text-slate-500 uppercase tracking-widest mt-1">בוחן אקטיבי v5</p>
+            <h1 className="text-lg font-black text-white">✚ סימולטור מע"ר</h1>
+            <p className="text-[10px] text-slate-500 mt-1 uppercase tracking-widest">בוחן אקטיבי v5</p>
           </div>
           <div className="flex items-center gap-2">
             {timerRunning && (
-              <button 
-                onClick={() => setPaused(!paused)} 
-                className="text-xs bg-slate-800 px-2 py-1.5 rounded border border-slate-700 text-white transition-colors"
-              >
+              <button onClick={() => setPaused(!paused)} className="p-2 bg-slate-800 rounded-lg border border-slate-700">
                 {paused ? '▶' : '⏸'}
               </button>
             )}
-            <div className={`font-mono font-bold px-3 py-1.5 rounded-lg border text-sm ${
+            <div className={`font-mono font-bold px-3 py-1.5 rounded-lg border ${
               paused ? 'bg-amber-900/20 border-amber-700 text-amber-500' : 'bg-slate-800 border-slate-700 text-blue-400'
             }`}>
               {fmt(seconds)}
             </div>
           </div>
         </div>
-        {scoreHistory.length > 0 && (
-          <div className="flex gap-2 mt-3 overflow-x-auto no-scrollbar">
-            {scoreHistory.map((h, i) => (
-              <div key={i} className="bg-slate-800/50 border border-slate-700 px-2 py-1 rounded text-[10px] whitespace-nowrap text-slate-400">
-                {h.date}: <span className="font-bold text-slate-200">{h.score}</span>
-              </div>
-            ))}
-          </div>
-        )}
       </header>
 
-      {/* Main Chat Area - האזור היחיד שנגלל */}
-      <main className="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar bg-slate-950">
+      {/* אזור הצ'אט - האזור היחיד שגדל ונגלל */}
+      <main className="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar">
         {messages.length === 0 && (
-          <div className="h-full flex flex-col items-center justify-center text-slate-600 text-center opacity-40">
-             <span className="text-5xl mb-2">🚑</span>
-             <p className="text-sm">מוכן לסימולציה?<br/>הבוחן ימתין לפעולה הראשונה שלך.</p>
+          <div className="h-full flex flex-col items-center justify-center text-slate-700 opacity-40">
+             <span className="text-6xl mb-4">🚑</span>
+             <p className="text-sm font-bold">הבוחן ממתין לפעולה שלך</p>
           </div>
         )}
         {messages.map((m, i) => (
           <div key={i} className={`flex ${m.role === 'user' ? 'justify-start' : 'justify-end'}`}>
-            <div className={`max-w-[85%] px-4 py-3 rounded-2xl text-sm leading-relaxed shadow-sm ${
+            <div className={`max-w-[85%] px-4 py-3 rounded-2xl text-sm leading-relaxed ${
               m.role === 'user'
                 ? 'bg-blue-600 text-white rounded-tl-none font-medium'
                 : 'bg-slate-800 border border-slate-700 text-slate-100 rounded-tr-none'
@@ -207,32 +177,31 @@ export default function MdaSimulator() {
         <div ref={scrollRef} className="h-4" />
       </main>
 
-      {/* Footer / Input - נשמד למטה */}
+      {/* Footer - שורת הקלט, תמיד למטה */}
       <footer className="shrink-0 p-4 bg-slate-900 border-t border-slate-800 pb-safe z-20">
         {!isActive ? (
           <button
             onClick={startScenario}
             disabled={loading}
-            className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white py-4 rounded-xl font-black text-xl transition-all active:scale-[0.98] shadow-xl shadow-blue-900/30"
+            className="w-full bg-blue-600 hover:bg-blue-500 text-white py-4 rounded-2xl font-black text-xl transition-all shadow-xl active:scale-95"
           >
-            {loading ? 'טוען תרחיש...' : 'התחל תרחיש חדש 🚑'}
+            {loading ? 'טוען...' : 'התחל תרחיש חדש 🚑'}
           </button>
         ) : (
-          <div className="flex gap-2">
+          <div className="flex gap-2 w-full">
             <input
               ref={inputRef}
               value={input}
               disabled={paused || loading}
-              onFocus={handleInputFocus} // תיקון הקפיצה כאן
               onChange={e => setInput(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(input); } }}
-              placeholder={paused ? "הסימולציה מושהית" : "תאר פעולה..."}
-              className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-4 py-3.5 focus:outline-none focus:ring-2 focus:ring-blue-500 text-base text-white placeholder:text-slate-600 transition-all"
+              placeholder={paused ? "מושהה" : "תאר פעולה..."}
+              className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-4 py-3.5 focus:outline-none focus:ring-2 focus:ring-blue-500 text-base text-white"
             />
             <button
               onClick={() => sendMessage(input)}
               disabled={paused || loading || !input.trim()}
-              className="bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white px-6 rounded-xl font-bold transition-all active:scale-95"
+              className="bg-blue-600 px-6 rounded-xl font-bold text-white active:scale-95 transition-all"
             >
               שלח
             </button>
