@@ -2,32 +2,33 @@
 @tailwind components;
 @tailwind utilities;
 
-/* נעילה מוחלטת של המסך */
+/* נעילה מוחלטת של ה-Viewport */
 html, body {
   height: 100%;
   width: 100%;
   overflow: hidden;
-  position: fixed; /* קריטי למניעת קפיצות במובייל */
+  position: fixed; /* חשוב מאוד: מונע מהדף לקפוץ למעלה */
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   overscroll-behavior: none;
   background-color: #020617; /* bg-slate-950 */
 }
 
-/* קונטיינר גובה דינמי שמתחשב במקלדת */
+/* גובה דינמי שמתאים את עצמו למקלדת בזמן אמת */
 .h-dynamic {
-  height: 100dvh; /* גובה דינמי שמתעדכן עם המקלדת */
+  height: 100dvh; 
   display: flex;
   flex-direction: column;
 }
 
-/* הסתרת פסי גלילה */
-.no-scrollbar::-webkit-scrollbar {
-  display: none;
-}
-.no-scrollbar {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
+/* אזור הצ'אט הוא היחיד שמותר לו להיגלול */
+.chat-container {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
-.pb-safe {
-  padding-bottom: env(safe-area-inset-bottom);
-}
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
