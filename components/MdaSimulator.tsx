@@ -30,7 +30,7 @@ export default function MdaSimulator() {
 
   const isActive = lockedScenario !== null || loading;
 
-  // --- Effects ---
+  // טעינת היסטוריה
   useEffect(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
@@ -38,21 +38,27 @@ export default function MdaSimulator() {
     } catch {}
   }, []);
 
+  // ניהול טיימר
   useEffect(() => {
     if (!timerRunning || paused) return;
     const id = setInterval(() => setSeconds(s => s + 1), 1000);
     return () => clearInterval(id);
   }, [timerRunning, paused]);
 
+  // גלילה אוטומטית
   useEffect(() => {
-    scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (scrollRef.current) {
+      scrollRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
   }, [messages]);
 
+  // פוקוס אוטומטי
   useEffect(() => {
-    if (isActive && !paused && !loading) inputRef.current?.focus();
+    if (isActive && !paused && !loading) {
+      inputRef.current?.focus();
+    }
   }, [isActive, paused, loading, messages.length]);
 
-  // --- Helpers ---
   const fmt = (s: number) =>
     `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
 
@@ -67,6 +73,7 @@ export default function MdaSimulator() {
   const handleStream = useCallback(async (res: Response) => {
     const reader = res.body?.getReader();
     if (!reader) return;
+
     setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
     let full = '';
     const dec = new TextDecoder();
@@ -82,7 +89,7 @@ export default function MdaSimulator() {
     if (m) {
       saveScore(parseInt(m[1], 10));
       setLockedScenario(null);
-      setTimerRunning(false); // עצירת השעון ברגע שיש ציון
+      setTimerRunning(false);
       setPaused(false);
     }
   }, [saveScore]);
@@ -137,55 +144,55 @@ export default function MdaSimulator() {
   };
 
   return (
-    <div className="h-dynamic w-full max-w-2xl mx-auto bg-slate-950 shadow-2xl relative flex flex-col">
+    <div className="h-dynamic w-full max-w-2xl mx-auto flex flex-col bg-slate-950 relative overflow-hidden">
       
-      {/* Header */}
-      <header className="shrink-0 bg-slate-900/80 backdrop-blur-md border-b border-slate-800 p-4 z-20">
+      {/* Header - גובה קבוע */}
+      <header className="shrink-0 bg-slate-900 border-b border-slate-800 p-4 z-20">
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-lg font-black text-white leading-none">✚ סימולטור מע"ר</h1>
-            <p className="text-[10px] text-slate-500 uppercase tracking-widest mt-1">Proactive Examiner v5</p>
+            <h1 className="text-lg font-black text-white">✚ סימולטור מע"ר</h1>
+            <p className="text-[10px] text-slate-500 uppercase tracking-widest">בוחן אקטיבי v5</p>
           </div>
-          
           <div className="flex items-center gap-2">
             {timerRunning && (
-              <button onClick={() => setPaused(!paused)} className="text-xs bg-slate-800 px-2 py-1 rounded-md border border-slate-700 text-white">
+              <button 
+                onClick={() => setPaused(!paused)} 
+                className="text-xs bg-slate-800 px-2 py-1 rounded border border-slate-700 text-white"
+              >
                 {paused ? '▶' : '⏸'}
               </button>
             )}
-            <div className={`font-mono font-bold px-3 py-1 rounded-lg border text-sm ${
+            <div className={`font-mono font-bold px-3 py-1 rounded border text-sm ${
               paused ? 'bg-amber-900/20 border-amber-700 text-amber-500' : 'bg-slate-800 border-slate-700 text-blue-400'
             }`}>
               {fmt(seconds)}
             </div>
           </div>
         </div>
-        
         {scoreHistory.length > 0 && (
-          <div className="flex gap-1.5 mt-3 overflow-x-auto no-scrollbar">
+          <div className="flex gap-2 mt-2 overflow-x-auto no-scrollbar">
             {scoreHistory.map((h, i) => (
-              <div key={i} className="bg-slate-800/50 border border-slate-700 px-2 py-1 rounded-md text-[10px] whitespace-nowrap text-slate-300">
-                <span className="text-slate-500">{h.date}:</span> <span className="font-bold">{h.score}</span>
+              <div key={i} className="bg-slate-800/50 border border-slate-700 px-2 py-1 rounded text-[10px] whitespace-nowrap text-slate-400">
+                {h.date}: <span className="font-bold text-slate-200">{h.score}</span>
               </div>
             ))}
           </div>
         )}
       </header>
 
-      {/* Chat Area */}
-      <main className="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar bg-slate-950/50">
+      {/* Main Chat Area - גמיש ונגלל */}
+      <main className="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar">
         {messages.length === 0 && (
-          <div className="h-full flex flex-col items-center justify-center text-slate-600 text-center space-y-4 opacity-50">
-             <div className="text-4xl">🚑</div>
-             <p className="text-sm">מוכן לסימולציית מגה-קוד?<br/>הבוחן ימתין לפעולה הראשונה שלך.</p>
+          <div className="h-full flex flex-col items-center justify-center text-slate-600 text-center opacity-40">
+             <span className="text-4xl mb-2">🚑</span>
+             <p className="text-sm italic">ממתין לתחילת תרחיש...</p>
           </div>
         )}
-
         {messages.map((m, i) => (
           <div key={i} className={`flex ${m.role === 'user' ? 'justify-start' : 'justify-end'}`}>
-            <div className={`max-w-[90%] px-4 py-3 rounded-2xl text-sm leading-relaxed shadow-sm ${
+            <div className={`max-w-[85%] px-4 py-3 rounded-2xl text-sm leading-relaxed ${
               m.role === 'user'
-                ? 'bg-blue-600 text-white rounded-tl-none font-medium'
+                ? 'bg-blue-600 text-white rounded-tl-none'
                 : 'bg-slate-800 border border-slate-700 text-slate-100 rounded-tr-none'
             }`}>
               {m.content}
@@ -195,31 +202,31 @@ export default function MdaSimulator() {
         <div ref={scrollRef} className="h-4" />
       </main>
 
-      {/* Footer / Input */}
-      <footer className="shrink-0 p-4 bg-slate-900 border-t border-slate-800 pb-safe z-20">
+      {/* Footer - תמיד בתחתית, גובה קבוע */}
+      <footer className="shrink-0 p-4 bg-slate-900 border-t border-slate-800 pb-safe">
         {!isActive ? (
           <button
             onClick={startScenario}
             disabled={loading}
-            className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white py-4 rounded-2xl font-black text-xl transition-all active:scale-[0.97] shadow-xl shadow-blue-900/40"
+            className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white py-4 rounded-xl font-black text-xl transition-all active:scale-95 shadow-lg shadow-blue-900/20"
           >
-            {loading ? 'טוען תרחיש...' : 'התחל תרחיש חדש 🚑'}
+            {loading ? 'טוען...' : 'התחל תרחיש חדש 🚑'}
           </button>
         ) : (
-          <div className="flex gap-2 w-full">
+          <div className="flex gap-2">
             <input
               ref={inputRef}
               value={input}
               disabled={paused || loading}
               onChange={e => setInput(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(input); } }}
-              placeholder={paused ? "הסימולציה מושהית" : "מה הפעולה הבאה שלך?"}
-              className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-4 py-3.5 focus:outline-none focus:ring-2 focus:ring-blue-500 text-base text-white placeholder:text-slate-600"
+              placeholder={paused ? "הסימולציה מושהית" : "תאר פעולה..."}
+              className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 text-white placeholder:text-slate-600"
             />
             <button
               onClick={() => sendMessage(input)}
               disabled={paused || loading || !input.trim()}
-              className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white px-5 rounded-xl font-bold transition-all active:scale-95"
+              className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white px-5 rounded-lg font-bold transition-all active:scale-95"
             >
               שלח
             </button>
