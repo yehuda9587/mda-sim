@@ -4,7 +4,8 @@ import { buildSystemPrompt, getRandomScenario, Message } from '@/lib/system-prom
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
-const INJECTED_PREFIX = "הוראות תפעול: נהל את המקרה לפי ABCDE. לסיום כתוב 'סיימתי'.\n\n";
+const INJECTED_PREFIX = "זה סימולטור של מקרי מד''א למע''רים, או במילים אחרות מגה קוד. תנהל את המקרה הזה על פי הסכמה הנכונה, כולל בדיקות וטיפולים, ולבסוף תגיד מהאבחנה המשוערת שלך, ותגיד סיימתי.
+לסיום כתוב 'סיימתי'.\n\n";
 
 // ─── מודלים עם fallback ───────────────────────────────────────────────────────
 // 2.5-flash ראשי (thinking כבוי), 2.0-flash גיבוי
