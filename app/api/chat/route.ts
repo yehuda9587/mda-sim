@@ -4,11 +4,10 @@ import { buildSystemPrompt, getRandomScenario, Message } from '@/lib/system-prom
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
-// שים לב ל-\n\n הכפול בסוף - זה מה שיוצר את הרווח למקרה
-const INJECTED_PREFIX = "דגשים לסימולציה:\n" + 
-  "זהו \"מגה קוד\" של מד\"א. עליך לנהל את המקרה לפי סכימת SABCDE המלאה, " + 
-  "כולל ביצוע בדיקות, התרשמות קלינית ומתן טיפול. " + 
-  "בסיום הטיפול, ציין אבחנה משוערת וכתוב 'סיימתי'.\n\n";
+const INJECTED_PREFIX = "דגשים לסימולציה: זהו מגה קוד של מד"א. נהל לפי SABCDE, בצע בדיקות, תן טיפול. לסיום כתוב "סיימתי".
+
+";
+
 // ─── מודלים עם fallback ───────────────────────────────────────────────────────
 // 2.5-flash ראשי (thinking כבוי), 2.0-flash גיבוי
 const MODELS = [
@@ -17,7 +16,7 @@ const MODELS = [
     generationConfig: {
       temperature: 0,
       topP: 0.1,
-      maxOutputTokens: 600,
+      maxOutputTokens: 1000,
       thinkingConfig: { thinkingBudget: 0 },
     },
   },
@@ -26,7 +25,7 @@ const MODELS = [
     generationConfig: {
       temperature: 0,
       topP: 0.1,
-      maxOutputTokens: 600,
+      maxOutputTokens: 1000,
     },
   },
 ] as const;
@@ -81,8 +80,8 @@ function extractCaseDescription(raw: string): string {
 
 // ─── הסרת prefix מוזרק מהיסטוריה ────────────────────────────────────────────
 function stripInjected(text: string): string {
-  // מסיר "הוראות תפעול: ...\n\n" שהשרת הזריק
-  return text.replace(/^הוראות תפעול:[^\n]*\n\n/, '').trim();
+  // מסיר את כל ה-prefix שהשרת הזריק (שורה ראשונה + שורה ריקה)
+  return text.replace(/^[^\n]+\n\n/, '').trim();
 }
 
 // ─── בניית היסטוריה תקינה לגמיני ─────────────────────────────────────────────
