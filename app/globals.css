@@ -2,30 +2,31 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --bg: #0d1117;
-  --surface: #161b22;
-  --border: #21262d;
-  --accent: #58a6ff;
-  --accent-dim: #1f3a5f;
-  --text: #e6edf3;
-  --text-dim: #8b949e;
-  --green: #3fb950;
-  --red: #f85149;
-  --yellow: #d29922;
-  --user-bg: #1c2d3f;
-  --ai-bg: #161b22;
+/* מניעת גלילה של כל הדף ונעילת ה-Viewport */
+html, body {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  position: fixed; /* מונע גלילה של כל ה-Body במובייל */
+  overscroll-behavior: none; /* מבטל את אפקט המתיחה (Rubber-band) */
+  background-color: #020617; /* bg-slate-950 */
 }
 
-* { box-sizing: border-box; }
-
-body {
-  background: var(--bg);
-  color: var(--text);
-  font-family: 'Segoe UI', system-ui, sans-serif;
-  direction: rtl;
+/* הגדרת גובה דינמי שמתחשב במקלדת שנפתחת */
+.h-dynamic {
+  height: 100dvh; /* Dynamic Viewport Height */
 }
 
-.scrollbar-thin::-webkit-scrollbar { width: 4px; }
-.scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
-.scrollbar-thin::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+/* התאמה לשוליים בטוחים (מכשירי iPhone עם Notch) */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* הסתרת פס גלילה לצ'אט נקי */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
