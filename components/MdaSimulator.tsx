@@ -45,14 +45,14 @@ export default function MdaSimulator() {
     return () => clearInterval(id);
   }, [timerRunning, paused]);
 
-  // גלילה אוטומטית - תמיד להודעה האחרונה
+  // גלילה אוטומטית להודעה האחרונה
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages]);
 
-  // פוקוס אוטומטי
+  // פוקוס אוטומטי על הקלט
   useEffect(() => {
     if (isActive && !paused && !loading) {
       inputRef.current?.focus();
@@ -146,19 +146,18 @@ export default function MdaSimulator() {
   return (
     <div className="h-dynamic w-full max-w-2xl mx-auto flex flex-col bg-slate-950 relative overflow-hidden">
       
-      {/* Header - גובה קבוע, לא מתכווץ */}
+      {/* Header - גובה קבוע, shrink-0 מונע ממנו להתכווץ */}
       <header className="shrink-0 bg-slate-900 border-b border-slate-800 p-4 z-20">
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-lg font-black text-white leading-none">✚ סימולטור מע"ר</h1>
             <p className="text-[10px] text-slate-500 uppercase tracking-widest mt-1">בוחן אקטיבי v5</p>
           </div>
-          
           <div className="flex items-center gap-2">
             {timerRunning && (
               <button 
                 onClick={() => setPaused(!paused)} 
-                className="text-xs bg-slate-800 px-2 py-1.5 rounded border border-slate-700 text-white"
+                className="text-xs bg-slate-800 hover:bg-slate-700 px-2 py-1.5 rounded border border-slate-700 text-white transition-colors"
               >
                 {paused ? '▶ המשך' : '⏸ עצור'}
               </button>
@@ -170,11 +169,10 @@ export default function MdaSimulator() {
             </div>
           </div>
         </div>
-        
         {scoreHistory.length > 0 && (
           <div className="flex gap-2 mt-3 overflow-x-auto no-scrollbar">
             {scoreHistory.map((h, i) => (
-              <div key={i} className="bg-slate-800/50 border border-slate-700 px-2 py-1 rounded text-[10px] whitespace-nowrap text-slate-400">
+              <div key={i} className="bg-slate-800/50 border border-slate-700 px-2 py-1 rounded-md text-[10px] whitespace-nowrap text-slate-400">
                 {h.date}: <span className="font-bold text-slate-200">{h.score}</span>
               </div>
             ))}
@@ -182,21 +180,20 @@ export default function MdaSimulator() {
         )}
       </header>
 
-      {/* אזור הצ'אט - תופס את כל המקום הפנוי (flex-1) ונגלל */}
+      {/* Main Chat Area - flex-1 גורם לו לתפוס את כל השטח הפנוי */}
       <main className="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar bg-slate-950">
         {messages.length === 0 && (
           <div className="h-full flex flex-col items-center justify-center text-slate-600 text-center opacity-40">
              <span className="text-5xl mb-2">🚑</span>
-             <p className="text-sm italic">ממתין לתחילת תרחיש...</p>
+             <p className="text-sm">מוכן לסימולציה?<br/>הבוחן ימתין לפעולה הראשונה שלך.</p>
           </div>
         )}
-
         {messages.map((m, i) => (
           <div key={i} className={`flex ${m.role === 'user' ? 'justify-start' : 'justify-end'}`}>
-            <div className={`max-w-[85%] px-4 py-3 rounded-2xl text-sm leading-relaxed ${
+            <div className={`max-w-[88%] px-4 py-3 rounded-2xl text-sm leading-relaxed ${
               m.role === 'user'
-                ? 'bg-blue-600 text-white rounded-tl-none font-medium shadow-md'
-                : 'bg-slate-800 border border-slate-700 text-slate-100 rounded-tr-none shadow-sm'
+                ? 'bg-blue-600 text-white rounded-tl-none font-medium'
+                : 'bg-slate-800 border border-slate-700 text-slate-100 rounded-tr-none'
             }`}>
               {m.content}
             </div>
@@ -205,7 +202,7 @@ export default function MdaSimulator() {
         <div ref={scrollRef} className="h-4" />
       </main>
 
-      {/* Footer - שורת קלט - תמיד בתחתית (shrink-0) */}
+      {/* Footer - תמיד בתחתית, shrink-0 שומר עליו יציב */}
       <footer className="shrink-0 p-4 bg-slate-900 border-t border-slate-800 pb-safe z-20">
         {!isActive ? (
           <button
@@ -224,12 +221,12 @@ export default function MdaSimulator() {
               onChange={e => setInput(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(input); } }}
               placeholder={paused ? "הסימולציה מושהית" : "תאר פעולה (סכימת ABCDE)..."}
-              className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-4 py-3.5 focus:outline-none focus:ring-2 focus:ring-blue-500 text-base text-white placeholder:text-slate-600 transition-all"
+              className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-4 py-3.5 focus:outline-none focus:ring-2 focus:ring-blue-500 text-base text-white placeholder:text-slate-600 transition-all"
             />
             <button
               onClick={() => sendMessage(input)}
               disabled={paused || loading || !input.trim()}
-              className="bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white px-6 rounded-lg font-bold transition-all active:scale-95 shadow-lg shadow-blue-900/20"
+              className="bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white px-6 rounded-xl font-bold transition-all active:scale-95 shadow-lg shadow-blue-900/20"
             >
               שלח
             </button>
