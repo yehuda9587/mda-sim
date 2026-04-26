@@ -2,33 +2,35 @@
 @tailwind components;
 @tailwind utilities;
 
-/* נעילה מוחלטת של ה-Viewport */
+/* נעילה הרמטית של המסך */
 html, body {
   height: 100%;
   width: 100%;
   overflow: hidden;
-  position: fixed; /* חשוב מאוד: מונע מהדף לקפוץ למעלה */
+  position: fixed; /* מונע מהדפדפן להזיז את הדף כשהמקלדת נפתחת */
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
   overscroll-behavior: none;
-  background-color: #020617; /* bg-slate-950 */
+  background-color: #020617;
 }
 
-/* גובה דינמי שמתאים את עצמו למקלדת בזמן אמת */
+/* קונטיינר בגובה המסך המדויק */
 .h-dynamic {
   height: 100dvh; 
   display: flex;
   flex-direction: column;
 }
 
-/* אזור הצ'אט הוא היחיד שמותר לו להיגלול */
+/* אזור הצ'אט - גלילה עצמאית */
 .chat-container {
   flex: 1;
   overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
+  -webkit-overflow-scrolling: touch; /* גלילה חלקה ב-iOS */
+  overscroll-behavior-y: contain; /* נועל את הגלילה בתוך האלמנט בלבד */
 }
 
+/* הסתרת פסי גלילה לעיצוב נקי */
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
