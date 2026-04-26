@@ -4,7 +4,9 @@ import { buildSystemPrompt, getRandomScenario, Message } from '@/lib/system-prom
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
-const INJECTED_PREFIX = "דגשים לסימולציה: זהו מגה קוד של מד"א. נהל לפי SABCDE, בצע בדיקות, תן טיפול. לסיום כתוב "סיימתי".
+const INJECTED_PREFIX = `דגשים לסימולציה: זהו מגה קוד של מד"א. נהל לפי SABCDE, בצע בדיקות, תן טיפול. לסיום כתוב 'סיימתי'.
+
+`;
 
 ";
 
