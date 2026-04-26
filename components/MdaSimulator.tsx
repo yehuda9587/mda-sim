@@ -15,7 +15,7 @@ const STORAGE_KEY = 'mda_sim_v5';
 const SCORE_RE = /ציון\s+סופי:\s*(\d+)/i;
 
 export default function MdaSimulator() {
-  // --- הגדרות State ---
+  // --- States ---
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [seconds, setSeconds] = useState(0);
@@ -30,7 +30,7 @@ export default function MdaSimulator() {
 
   const isActive = lockedScenario !== null || loading;
 
-  // טעינת היסטוריה מה-LocalStorage
+  // טעינת היסטוריה
   useEffect(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
@@ -38,21 +38,21 @@ export default function MdaSimulator() {
     } catch {}
   }, []);
 
-  // ניהול הטיימר (נעצר כשהסימולציה מושהית)
+  // ניהול טיימר
   useEffect(() => {
     if (!timerRunning || paused) return;
     const id = setInterval(() => setSeconds(s => s + 1), 1000);
     return () => clearInterval(id);
   }, [timerRunning, paused]);
 
-  // גלילה אוטומטית לתחתית הצ'אט בכל הודעה חדשה
+  // גלילה אוטומטית - תמיד להודעה האחרונה
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages]);
 
-  // פוקוס אוטומטי על שורת הקלט
+  // פוקוס אוטומטי
   useEffect(() => {
     if (isActive && !paused && !loading) {
       inputRef.current?.focus();
@@ -85,7 +85,6 @@ export default function MdaSimulator() {
       setMessages(prev => [...prev.slice(0, -1), { role: 'assistant', content: full }]);
     }
 
-    // בדיקה אם הגיע ציון סופי - אם כן, עוצרים את הטיימר
     const m = full.match(SCORE_RE);
     if (m) {
       saveScore(parseInt(m[1], 10));
@@ -145,72 +144,68 @@ export default function MdaSimulator() {
   };
 
   return (
-    <div className="h-dynamic w-full max-w-2xl mx-auto flex flex-col bg-slate-950 relative overflow-hidden shadow-2xl">
+    <div className="h-dynamic w-full max-w-2xl mx-auto flex flex-col bg-slate-950 relative overflow-hidden">
       
-      {/* Header - נשאר קבוע למעלה (shrink-0) */}
-      <header className="shrink-0 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 p-4 z-20">
+      {/* Header - גובה קבוע, לא מתכווץ */}
+      <header className="shrink-0 bg-slate-900 border-b border-slate-800 p-4 z-20">
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-lg font-black text-white">✚ סימולטור מע"ר</h1>
+            <h1 className="text-lg font-black text-white leading-none">✚ סימולטור מע"ר</h1>
             <p className="text-[10px] text-slate-500 uppercase tracking-widest mt-1">בוחן אקטיבי v5</p>
           </div>
+          
           <div className="flex items-center gap-2">
             {timerRunning && (
               <button 
                 onClick={() => setPaused(!paused)} 
-                className="text-xs bg-slate-800 hover:bg-slate-700 px-2 py-1.5 rounded border border-slate-700 text-white transition-colors"
+                className="text-xs bg-slate-800 px-2 py-1.5 rounded border border-slate-700 text-white"
               >
                 {paused ? '▶ המשך' : '⏸ עצור'}
               </button>
             )}
-            <div className={`font-mono font-bold px-3 py-1.5 rounded-lg border text-sm transition-all ${
-              paused ? 'bg-amber-900/20 border-amber-700 text-amber-500 animate-pulse' : 'bg-slate-800 border-slate-700 text-blue-400'
+            <div className={`font-mono font-bold px-3 py-1.5 rounded-lg border text-sm ${
+              paused ? 'bg-amber-900/20 border-amber-700 text-amber-500' : 'bg-slate-800 border-slate-700 text-blue-400'
             }`}>
               {fmt(seconds)}
             </div>
           </div>
         </div>
-        {/* היסטוריית ציונים */}
+        
         {scoreHistory.length > 0 && (
           <div className="flex gap-2 mt-3 overflow-x-auto no-scrollbar">
             {scoreHistory.map((h, i) => (
-              <div key={i} className="bg-slate-800/50 border border-slate-700 px-2 py-1 rounded-md text-[10px] whitespace-nowrap text-slate-400">
-                <span className="opacity-60">{h.date}:</span> <span className="font-bold text-slate-200">{h.score}</span>
+              <div key={i} className="bg-slate-800/50 border border-slate-700 px-2 py-1 rounded text-[10px] whitespace-nowrap text-slate-400">
+                {h.date}: <span className="font-bold text-slate-200">{h.score}</span>
               </div>
             ))}
           </div>
         )}
       </header>
 
-      {/* אזור הצ'אט - גמיש ונגלל (flex-1) */}
+      {/* אזור הצ'אט - תופס את כל המקום הפנוי (flex-1) ונגלל */}
       <main className="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar bg-slate-950">
         {messages.length === 0 && (
-          <div className="h-full flex flex-col items-center justify-center text-slate-600 text-center opacity-50 space-y-4">
-             <span className="text-5xl">🚑</span>
-             <p className="text-sm">מוכן לסימולציה?<br/>הבוחן ימתין לפעולה הראשונה שלך.</p>
+          <div className="h-full flex flex-col items-center justify-center text-slate-600 text-center opacity-40">
+             <span className="text-5xl mb-2">🚑</span>
+             <p className="text-sm italic">ממתין לתחילת תרחיש...</p>
           </div>
         )}
+
         {messages.map((m, i) => (
           <div key={i} className={`flex ${m.role === 'user' ? 'justify-start' : 'justify-end'}`}>
-            <div className={`max-w-[88%] px-4 py-3 rounded-2xl text-sm leading-relaxed shadow-sm ${
+            <div className={`max-w-[85%] px-4 py-3 rounded-2xl text-sm leading-relaxed ${
               m.role === 'user'
-                ? 'bg-blue-600 text-white rounded-tl-none font-medium'
-                : 'bg-slate-800 border border-slate-700 text-slate-100 rounded-tr-none'
+                ? 'bg-blue-600 text-white rounded-tl-none font-medium shadow-md'
+                : 'bg-slate-800 border border-slate-700 text-slate-100 rounded-tr-none shadow-sm'
             }`}>
-              {m.content || (
-                <span className="flex gap-1 py-1">
-                  <span className="w-1.5 h-1.5 bg-slate-500 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
-                  <span className="w-1.5 h-1.5 bg-slate-500 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
-                  <span className="w-1.5 h-1.5 bg-slate-500 rounded-full animate-bounce"></span>
-                </span>
-              )}
+              {m.content}
             </div>
           </div>
         ))}
         <div ref={scrollRef} className="h-4" />
       </main>
 
-      {/* Footer / שורת קלט - נשארת קבועה למטה (shrink-0) */}
+      {/* Footer - שורת קלט - תמיד בתחתית (shrink-0) */}
       <footer className="shrink-0 p-4 bg-slate-900 border-t border-slate-800 pb-safe z-20">
         {!isActive ? (
           <button
@@ -229,12 +224,12 @@ export default function MdaSimulator() {
               onChange={e => setInput(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(input); } }}
               placeholder={paused ? "הסימולציה מושהית" : "תאר פעולה (סכימת ABCDE)..."}
-              className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-4 py-3.5 focus:outline-none focus:ring-2 focus:ring-blue-500 text-base text-white placeholder:text-slate-600 transition-all"
+              className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-4 py-3.5 focus:outline-none focus:ring-2 focus:ring-blue-500 text-base text-white placeholder:text-slate-600 transition-all"
             />
             <button
               onClick={() => sendMessage(input)}
               disabled={paused || loading || !input.trim()}
-              className="bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white px-6 rounded-xl font-bold transition-all active:scale-95 shadow-lg shadow-blue-900/20"
+              className="bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white px-6 rounded-lg font-bold transition-all active:scale-95 shadow-lg shadow-blue-900/20"
             >
               שלח
             </button>
