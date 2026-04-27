@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 
 interface ChatMessage {
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'model';
   content: string;
 }
 
@@ -11,22 +11,26 @@ interface ScoreEntry {
   score: number;
 }
 
-const STORAGE_KEY = 'mda_sim_v6';
+const STORAGE_KEY = 'mda_sim_v5';
 const SCORE_RE = /ציון\s+סופי:\s*(\d+)/i;
 
 export default function MdaSimulator() {
-  const [messages, setMessages]             = useState<ChatMessage[]>([]);
-  const [input, setInput]                   = useState('');
-  const [seconds, setSeconds]               = useState(0);
-  const [timerRunning, setTimerRunning]     = useState(false);
-  const [paused, setPaused]                 = useState(false);
-  const [loading, setLoading]               = useState(false);
-  const [scoreHistory, setScoreHistory]     = useState<ScoreEntry[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [input, setInput] = useState('');
+  const [seconds, setSeconds] = useState(0);
+  const [timerRunning, setTimerRunning] = useState(false);
+  const [paused, setPaused] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [scoreHistory, setScoreHistory] = useState<ScoreEntry[]>([]);
   const [lockedScenario, setLockedScenario] = useState<object | null>(null);
 
-  const inputRef  = useRef<HTMLInputElement>(null);
-  const bottomRef = useRef<HTMLDivElement>(null);
-  const isActive  = lockedScenario !== null || loading;
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const isActive = lockedScenario !== null || loading;
+
+  // לוגיקה למצב "חצי מסך": עד 6 הודעות (3 סבבים של משתמש+בוט)
+  const isInitialPhase = messages.length > 0 && messages.length <= 6;
 
   useEffect(() => {
     try {
@@ -41,16 +45,16 @@ export default function MdaSimulator() {
     return () => clearInterval(id);
   }, [timerRunning, paused]);
 
-  // גלילה אוטומטית — requestAnimationFrame מחכה לrender מלא
   useEffect(() => {
-    const id = requestAnimationFrame(() => {
-      bottomRef.current?.scrollIntoView({ block: 'end' });
-    });
-    return () => cancelAnimationFrame(id);
+    if (scrollRef.current) {
+      scrollRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
   }, [messages]);
 
   useEffect(() => {
-    if (isActive && !paused && !loading) inputRef.current?.focus();
+    if (isActive && !paused && !loading) {
+      inputRef.current?.focus();
+    }
   }, [isActive, paused, loading, messages.length]);
 
   const fmt = (s: number) =>
@@ -58,10 +62,7 @@ export default function MdaSimulator() {
 
   const saveScore = useCallback((score: number) => {
     setScoreHistory(prev => {
-      const updated = [
-        { date: new Date().toLocaleDateString('he-IL'), score },
-        ...prev,
-      ].slice(0, 5);
+      const updated = [{ date: new Date().toLocaleDateString('he-IL'), score }, ...prev].slice(0, 5);
       try { localStorage.setItem(STORAGE_KEY, JSON.stringify(updated)); } catch {}
       return updated;
     });
@@ -103,15 +104,11 @@ export default function MdaSimulator() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: [initMsg], scenario: null }),
       });
-      if (!res.ok) throw new Error(`שגיאת שרת ${res.status}`);
       const raw = res.headers.get('X-Scenario');
-      if (raw) {
-        try { setLockedScenario(JSON.parse(decodeURIComponent(raw))); } catch {}
-      }
+      if (raw) setLockedScenario(JSON.parse(decodeURIComponent(raw)));
       await handleStream(res);
     } catch (err: any) {
       setMessages(prev => [...prev, { role: 'assistant', content: `שגיאה: ${err.message}` }]);
-      setLockedScenario(null);
       setTimerRunning(false);
     } finally {
       setLoading(false);
@@ -131,7 +128,6 @@ export default function MdaSimulator() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: updated, scenario: lockedScenario }),
       });
-      if (!res.ok) throw new Error(`שגיאת שרת ${res.status}`);
       await handleStream(res);
     } catch (err: any) {
       setMessages(prev => [...prev, { role: 'assistant', content: `שגיאה: ${err.message}` }]);
@@ -141,117 +137,77 @@ export default function MdaSimulator() {
   };
 
   return (
-    <>
-      {/* HEADER — shell-header: flex-shrink-0, לא מתכווץ */}
-      <header className="shell-header bg-slate-900 border-b border-slate-800 px-4 py-3">
-        <div className="max-w-2xl mx-auto flex items-center justify-between">
+    <div className={`${isInitialPhase ? 'h-[50dvh]' : 'h-dynamic'} w-full max-w-2xl mx-auto flex flex-col bg-slate-950 relative overflow-hidden shadow-2xl transition-all duration-500`}>
+      
+      {/* Header */}
+      <header className="shrink-0 bg-slate-900 border-b border-slate-800 p-4 z-20">
+        <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-base font-bold leading-none">✚ סימולטור מע&quot;ר</h1>
-            <p className="text-[10px] text-slate-500 mt-0.5">מגה-קוד מד&quot;א · BLS</p>
+            <h1 className="text-lg font-black text-white">✚ סימולטור מע"ר</h1>
+            <p className="text-[10px] text-slate-500 uppercase tracking-widest mt-1">בוחן אקטיבי v5</p>
           </div>
           <div className="flex items-center gap-2">
             {timerRunning && (
-              <button
-                onClick={() => setPaused(p => !p)}
-                className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-slate-800 border border-slate-700 hover:bg-slate-700 transition-colors"
-              >
-                {paused ? '▶ המשך' : '⏸ עצור'}
+              <button onClick={() => setPaused(!paused)} className="text-xs bg-slate-800 px-2 py-1.5 rounded border border-slate-700 text-white">
+                {paused ? '▶' : '⏸'}
               </button>
             )}
-            <div className={`font-mono text-sm font-bold px-3 py-1 rounded-lg border ${
-              paused       ? 'bg-amber-950 border-amber-700 text-amber-400 animate-pulse' :
-              timerRunning ? 'bg-slate-800 border-slate-700 text-blue-400' :
-                             'bg-slate-900 border-slate-800 text-slate-600'
+            <div className={`font-mono font-bold px-3 py-1.5 rounded-lg border text-sm ${
+              paused ? 'bg-amber-900/20 border-amber-700 text-amber-500' : 'bg-slate-800 border-slate-700 text-blue-400'
             }`}>
               {fmt(seconds)}
             </div>
           </div>
         </div>
-
-        {scoreHistory.length > 0 && (
-          <div className="max-w-2xl mx-auto mt-2 flex gap-2 overflow-x-auto no-scrollbar pb-0.5">
-            {scoreHistory.map((h, i) => (
-              <div key={i} className="flex-shrink-0 bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-center min-w-[60px]">
-                <div className="text-[9px] text-slate-500">{h.date}</div>
-                <div className={`text-lg font-black leading-none mt-0.5 ${
-                  h.score >= 80 ? 'text-emerald-400' : h.score >= 60 ? 'text-amber-400' : 'text-rose-400'
-                }`}>{h.score}</div>
-              </div>
-            ))}
-          </div>
-        )}
       </header>
 
-      {/* CHAT — chat-area: flex-1, גולל בפנים */}
-      <div className="chat-area px-3 py-4">
-        <div className="max-w-2xl mx-auto space-y-3">
-          {messages.length === 0 && (
-            <div className="flex items-center justify-center py-16 text-slate-600 text-sm">
-              לחץ על &quot;התחל תרחיש&quot; כדי להתחיל
+      {/* Chat Area */}
+      <main className="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar bg-slate-950">
+        {messages.map((m, i) => (
+          <div key={i} className={`flex ${m.role === 'user' ? 'justify-start' : 'justify-end'}`}>
+            <div className={`max-w-[88%] px-4 py-3 rounded-2xl text-sm leading-relaxed ${
+              m.role === 'user'
+                ? 'bg-blue-600 text-white rounded-tl-none font-medium'
+                : 'bg-slate-800 border border-slate-700 text-slate-100 rounded-tr-none shadow-sm'
+            }`}>
+              {m.content}
             </div>
-          )}
-          {messages.map((m, i) => (
-            <div key={i} className={`flex ${m.role === 'user' ? 'justify-start' : 'justify-end'}`}>
-              <div className={`max-w-[88%] px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${
-                m.role === 'user'
-                  ? 'bg-blue-600 text-white rounded-tl-sm'
-                  : 'bg-slate-800 border border-slate-700 text-slate-100 rounded-tr-sm'
-              }`}>
-                <div className="text-[9px] font-bold opacity-40 mb-1">
-                  {m.role === 'user' ? 'מע"ר' : 'בוחן'}
-                </div>
-                {m.content || (
-                  <span className="inline-flex gap-1 items-center h-4">
-                    {[0, 150, 300].map(d => (
-                      <span key={d} className="w-1.5 h-1.5 bg-slate-500 rounded-full animate-bounce" style={{ animationDelay: `${d}ms` }} />
-                    ))}
-                  </span>
-                )}
-              </div>
-            </div>
-          ))}
-          <div ref={bottomRef} />
-        </div>
-      </div>
+          </div>
+        ))}
+        <div ref={scrollRef} className="h-4" />
+      </main>
 
-      {/* FOOTER — shell-footer: flex-shrink-0 */}
-      <footer className="shell-footer bg-slate-900 border-t border-slate-800 px-3 py-3">
-        <div className="max-w-2xl mx-auto">
-          {!isActive ? (
+      {/* Footer */}
+      <footer className="shrink-0 p-4 bg-slate-900 border-t border-slate-800 pb-safe z-20">
+        {!isActive ? (
+          <button
+            onClick={startScenario}
+            disabled={loading}
+            className="w-full bg-blue-600 hover:bg-blue-500 text-white py-4 rounded-xl font-black text-xl transition-all"
+          >
+            {loading ? 'טוען...' : 'התחל תרחיש חדש 🚑'}
+          </button>
+        ) : (
+          <div className="flex gap-2">
+            <input
+              ref={inputRef}
+              value={input}
+              placeholder=""
+              disabled={paused || loading}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(input); } }}
+              className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-4 py-3.5 focus:outline-none focus:ring-2 focus:ring-blue-500 text-base text-white transition-all"
+            />
             <button
-              onClick={startScenario}
-              disabled={loading}
-              className="w-full bg-blue-600 hover:bg-blue-500 active:bg-blue-700 disabled:opacity-50 text-white py-3.5 rounded-xl font-bold text-base transition-colors"
+              onClick={() => sendMessage(input)}
+              disabled={paused || loading || !input.trim()}
+              className="bg-blue-600 hover:bg-blue-500 text-white px-6 rounded-xl font-bold transition-all"
             >
-              {loading ? 'טוען תרחיש...' : 'התחל תרחיש חדש 🚑'}
+              שלח
             </button>
-          ) : (
-            <div className="flex gap-2">
-              <input
-                ref={inputRef}
-                value={input}
-                disabled={paused || loading}
-                onChange={e => setInput(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(input); } }}
-                placeholder={paused ? 'הסימולציה מושהית' : loading ? 'ממתין לתשובה...' : 'תאר פעולה (SABCDE)...'}
-                enterKeyHint="send"
-                inputMode="text"
-                className="flex-1 min-w-0 bg-slate-800 border border-slate-600 rounded-xl px-4 py-3
-                           text-base placeholder:text-slate-500
-                           focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
-                           disabled:opacity-40 transition-opacity"
-              />
-              <button
-                onClick={() => sendMessage(input)}
-                disabled={paused || loading || !input.trim()}
-                className="flex-shrink-0 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 disabled:opacity-40 text-white px-5 rounded-xl font-bold transition-colors"
-              >
-                שלח
-              </button>
-            </div>
-          )}
-        </div>
+          </div>
+        )}
       </footer>
-    </>
+    </div>
   );
 }
