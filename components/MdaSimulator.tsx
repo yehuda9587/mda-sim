@@ -29,7 +29,7 @@ export default function MdaSimulator() {
 
   const isActive = lockedScenario !== null || loading;
 
-  // לוגיקה לחצי מסך: עד 6 הודעות (3 סבבים של משתמש + בוט)
+  // לוגיקה לחצי מסך: עד 6 הודעות (3 סבבים של משתמש + בוחן)
   const isInitialPhase = messages.length > 0 && messages.length <= 6;
 
   useEffect(() => {
@@ -143,20 +143,20 @@ export default function MdaSimulator() {
       <header className="shrink-0 bg-slate-900 border-b border-slate-800 p-4 z-20">
         <div className="flex justify-between items-center w-full">
           
-          {/* Logo & Title Section */}
+          {/* Logo & Title */}
           <div className="flex items-center gap-3">
             <img 
               src="https://upload.wikimedia.org/wikipedia/commons/thumb/e/e3/Magen_David_Adom.svg/1200px-Magen_David_Adom.svg.png" 
               alt="MDA Logo" 
-              className="w-10 h-10 object-contain"
+              className="w-10 h-10 object-contain shadow-sm"
             />
             <div>
               <h1 className="text-lg font-black text-white leading-tight">סימולטור מע"ר</h1>
-              <p className="text-[10px] text-slate-500 uppercase tracking-widest mt-0.5">Active Examiner v5</p>
+              <p className="text-[10px] text-slate-500 uppercase tracking-widest mt-0.5">Megalodon v5</p>
             </div>
           </div>
 
-          {/* Controls & Timer */}
+          {/* Timer & Controls */}
           <div className="flex items-center gap-2">
             {timerRunning && (
               <button 
@@ -174,12 +174,12 @@ export default function MdaSimulator() {
           </div>
         </div>
 
-        {/* Score History Bar */}
+        {/* Score History */}
         {scoreHistory.length > 0 && (
           <div className="flex gap-2 mt-3 overflow-x-auto no-scrollbar">
             {scoreHistory.map((h, i) => (
-              <div key={i} className="bg-slate-800/50 border border-slate-700 px-2 py-1 rounded-md text-[10px] whitespace-nowrap text-slate-400">
-                <span className="opacity-60">{h.date}:</span> <span className="font-bold text-slate-200">{h.score}</span>
+              <div key={i} className="bg-slate-800/40 border border-slate-700/50 px-2 py-1 rounded-md text-[10px] whitespace-nowrap text-slate-400">
+                <span className="opacity-50">{h.date}:</span> <span className="font-bold text-slate-200">{h.score}</span>
               </div>
             ))}
           </div>
@@ -192,7 +192,7 @@ export default function MdaSimulator() {
           {messages.length === 0 && (
             <div className="h-[40vh] flex flex-col items-center justify-center text-slate-700 opacity-40 text-center">
                <span className="text-6xl mb-4">🚑</span>
-               <p className="text-sm font-bold">הבוחן ממתין לפעולה הראשונה שלך...</p>
+               <p className="text-sm font-bold">הבוחן ממתין לפעולה שלך...</p>
             </div>
           )}
           {messages.map((m, i) => (
@@ -210,7 +210,7 @@ export default function MdaSimulator() {
         </div>
       </main>
 
-      {/* Footer / Input Section */}
+      {/* Input Section */}
       <footer className="shrink-0 p-4 bg-slate-900 border-t border-slate-800 pb-safe z-20">
         <div className="w-full">
           {!isActive ? (
