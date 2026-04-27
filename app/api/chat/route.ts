@@ -74,8 +74,8 @@ export async function POST(req: NextRequest) {
     const systemPrompt = buildSystemPrompt(scenario);
     const history = buildGeminiHistory(messages);
 
-    const geminiPrompt = isFirstMessage
-      ? 'תאר את המקרה: גיל, מין, תנוחה, מצוקה עיקרית. סיים ב"כיצד תפעל?".'
+   const geminiPrompt = isFirstMessage
+      ? 'תאר רק מה שרואים מרחוק: גיל, מין, תנוחה ומיקום. אל תציין הכרה או נשימה. סיים ב"כיצד תפעל?".'
       : messages[messages.length - 1].content;
 
     let streamResult: any = null;
