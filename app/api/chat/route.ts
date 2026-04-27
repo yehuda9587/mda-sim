@@ -16,7 +16,7 @@ const MODELS = [
     generationConfig: {
       temperature: 0,
       topP: 0.1,
-      maxOutputTokens: 1000,
+      maxOutputTokens: 2000,
       thinkingConfig: { thinkingBudget: 0 },
     },
   },
@@ -25,7 +25,7 @@ const MODELS = [
     generationConfig: {
       temperature: 0,
       topP: 0.1,
-      maxOutputTokens: 1000,
+      maxOutputTokens: 2000,
     },
   },
 ] as const;
