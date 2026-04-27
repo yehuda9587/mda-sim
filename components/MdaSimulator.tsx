@@ -29,7 +29,7 @@ export default function MdaSimulator() {
 
   const isActive = lockedScenario !== null || loading;
 
-  // לוגיקה לחצי מסך: עד 6 הודעות (3 סבבים של משתמש + בוחן)
+  // לוגיקה לחצי מסך: 3 סבבים ראשונים (6 הודעות סה"כ)
   const isInitialPhase = messages.length > 0 && messages.length <= 6;
 
   useEffect(() => {
@@ -146,23 +146,20 @@ export default function MdaSimulator() {
           {/* Logo & Title */}
           <div className="flex items-center gap-3">
             <img 
-              src="https://upload.wikimedia.org/wikipedia/commons/thumb/e/e3/Magen_David_Adom.svg/1200px-Magen_David_Adom.svg.png" 
+              src="https://upload.wikimedia.org/wikipedia/commons/b/bb/Mada_logo.svg" 
               alt="MDA Logo" 
               className="w-10 h-10 object-contain shadow-sm"
             />
             <div>
               <h1 className="text-lg font-black text-white leading-tight">סימולטור מע"ר</h1>
-              <p className="text-[10px] text-slate-500 uppercase tracking-widest mt-0.5">Megalodon v5</p>
+              <p className="text-[10px] text-slate-500 uppercase tracking-widest mt-0.5">Active Examiner v5</p>
             </div>
           </div>
 
-          {/* Timer & Controls */}
+          {/* Controls */}
           <div className="flex items-center gap-2">
             {timerRunning && (
-              <button 
-                onClick={() => setPaused(!paused)} 
-                className="p-2 bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700 text-white transition-colors"
-              >
+              <button onClick={() => setPaused(!paused)} className="p-2 bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700 text-white transition-colors">
                 {paused ? '▶' : '⏸'}
               </button>
             )}
@@ -173,17 +170,6 @@ export default function MdaSimulator() {
             </div>
           </div>
         </div>
-
-        {/* Score History */}
-        {scoreHistory.length > 0 && (
-          <div className="flex gap-2 mt-3 overflow-x-auto no-scrollbar">
-            {scoreHistory.map((h, i) => (
-              <div key={i} className="bg-slate-800/40 border border-slate-700/50 px-2 py-1 rounded-md text-[10px] whitespace-nowrap text-slate-400">
-                <span className="opacity-50">{h.date}:</span> <span className="font-bold text-slate-200">{h.score}</span>
-              </div>
-            ))}
-          </div>
-        )}
       </header>
 
       {/* Chat Area */}
@@ -192,7 +178,7 @@ export default function MdaSimulator() {
           {messages.length === 0 && (
             <div className="h-[40vh] flex flex-col items-center justify-center text-slate-700 opacity-40 text-center">
                <span className="text-6xl mb-4">🚑</span>
-               <p className="text-sm font-bold">הבוחן ממתין לפעולה שלך...</p>
+               <p className="text-sm font-bold">הבוחן ממתין לפעולה הראשונה שלך...</p>
             </div>
           )}
           {messages.map((m, i) => (
