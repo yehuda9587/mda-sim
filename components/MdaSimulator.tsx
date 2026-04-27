@@ -29,7 +29,7 @@ export default function MdaSimulator() {
 
   const isActive = lockedScenario !== null || loading;
 
-  // לוגיקה לחצי מסך: עד 6 הודעות (3 סבבים של משתמש+בוט)
+  // לוגיקה לחצי מסך: עד 6 הודעות (3 סבבים של משתמש + בוט)
   const isInitialPhase = messages.length > 0 && messages.length <= 6;
 
   useEffect(() => {
@@ -46,11 +46,15 @@ export default function MdaSimulator() {
   }, [timerRunning, paused]);
 
   useEffect(() => {
-    scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (scrollRef.current) {
+      scrollRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
   }, [messages]);
 
   useEffect(() => {
-    if (isActive && !paused && !loading) inputRef.current?.focus();
+    if (isActive && !paused && !loading) {
+      inputRef.current?.focus();
+    }
   }, [isActive, paused, loading, messages.length]);
 
   const fmt = (s: number) =>
@@ -133,36 +137,67 @@ export default function MdaSimulator() {
   };
 
   return (
-    <div className={`${isInitialPhase ? 'h-[50dvh]' : 'h-dynamic'} w-full flex flex-col bg-slate-950 overflow-hidden relative transition-all duration-500`}>
+    <div className={`${isInitialPhase ? 'h-[50dvh]' : 'h-dynamic'} w-full max-w-2xl mx-auto flex flex-col bg-slate-950 relative overflow-hidden shadow-2xl transition-all duration-700 ease-in-out`}>
       
       {/* Header */}
       <header className="shrink-0 bg-slate-900 border-b border-slate-800 p-4 z-20">
-        <div className="flex justify-between items-center w-full max-w-2xl mx-auto">
-          <div>
-            <h1 className="text-lg font-black text-white">✚ סימולטור מע"ר</h1>
-            <p className="text-[10px] text-slate-500 uppercase mt-1 tracking-widest">Active Examiner v5</p>
+        <div className="flex justify-between items-center w-full">
+          
+          {/* Logo & Title Section */}
+          <div className="flex items-center gap-3">
+            <img 
+              src="https://upload.wikimedia.org/wikipedia/commons/thumb/e/e3/Magen_David_Adom.svg/1200px-Magen_David_Adom.svg.png" 
+              alt="MDA Logo" 
+              className="w-10 h-10 object-contain"
+            />
+            <div>
+              <h1 className="text-lg font-black text-white leading-tight">סימולטור מע"ר</h1>
+              <p className="text-[10px] text-slate-500 uppercase tracking-widest mt-0.5">Active Examiner v5</p>
+            </div>
           </div>
+
+          {/* Controls & Timer */}
           <div className="flex items-center gap-2">
             {timerRunning && (
-              <button onClick={() => setPaused(!paused)} className="p-2 bg-slate-800 rounded-lg border border-slate-700 text-white">
+              <button 
+                onClick={() => setPaused(!paused)} 
+                className="p-2 bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700 text-white transition-colors"
+              >
                 {paused ? '▶' : '⏸'}
               </button>
             )}
-            <div className={`font-mono font-bold px-3 py-1.5 rounded-lg border text-sm ${
-              paused ? 'bg-amber-900/20 border-amber-700 text-amber-500' : 'bg-slate-800 border-slate-700 text-blue-400'
+            <div className={`font-mono font-bold px-3 py-1.5 rounded-lg border text-sm transition-all ${
+              paused ? 'bg-amber-900/20 border-amber-700 text-amber-500 animate-pulse' : 'bg-slate-800 border-slate-700 text-blue-400'
             }`}>
               {fmt(seconds)}
             </div>
           </div>
         </div>
+
+        {/* Score History Bar */}
+        {scoreHistory.length > 0 && (
+          <div className="flex gap-2 mt-3 overflow-x-auto no-scrollbar">
+            {scoreHistory.map((h, i) => (
+              <div key={i} className="bg-slate-800/50 border border-slate-700 px-2 py-1 rounded-md text-[10px] whitespace-nowrap text-slate-400">
+                <span className="opacity-60">{h.date}:</span> <span className="font-bold text-slate-200">{h.score}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </header>
 
       {/* Chat Area */}
       <main className="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar bg-slate-950">
-        <div className="max-w-2xl mx-auto w-full flex flex-col space-y-4">
+        <div className="w-full flex flex-col space-y-4">
+          {messages.length === 0 && (
+            <div className="h-[40vh] flex flex-col items-center justify-center text-slate-700 opacity-40 text-center">
+               <span className="text-6xl mb-4">🚑</span>
+               <p className="text-sm font-bold">הבוחן ממתין לפעולה הראשונה שלך...</p>
+            </div>
+          )}
           {messages.map((m, i) => (
             <div key={i} className={`flex ${m.role === 'user' ? 'justify-start' : 'justify-end'}`}>
-              <div className={`max-w-[88%] px-4 py-3 rounded-2xl text-sm leading-relaxed ${
+              <div className={`max-w-[88%] px-4 py-3 rounded-2xl text-sm leading-relaxed shadow-sm ${
                 m.role === 'user'
                   ? 'bg-blue-600 text-white rounded-tl-none font-medium'
                   : 'bg-slate-800 border border-slate-700 text-slate-100 rounded-tr-none'
@@ -175,32 +210,32 @@ export default function MdaSimulator() {
         </div>
       </main>
 
-      {/* Footer */}
+      {/* Footer / Input Section */}
       <footer className="shrink-0 p-4 bg-slate-900 border-t border-slate-800 pb-safe z-20">
-        <div className="max-w-2xl mx-auto w-full">
+        <div className="w-full">
           {!isActive ? (
             <button
               onClick={startScenario}
               disabled={loading}
-              className="w-full bg-blue-600 hover:bg-blue-500 text-white py-4 rounded-xl font-black text-xl transition-all shadow-xl active:scale-95"
+              className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white py-4 rounded-xl font-black text-xl transition-all shadow-xl active:scale-[0.98]"
             >
-              {loading ? 'טוען...' : 'התחל תרחיש חדש 🚑'}
+              {loading ? 'טוען תרחיש...' : 'התחל תרחיש חדש 🚑'}
             </button>
           ) : (
             <div className="flex gap-2">
               <input
                 ref={inputRef}
                 value={input}
-                placeholder="" // Placeholder הוסר
+                placeholder=""
                 disabled={paused || loading}
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(input); } }}
-                className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-4 py-3.5 focus:outline-none focus:ring-2 focus:ring-blue-500 text-base text-white transition-all" // טקסט לבן מובנה ב-text-white
+                className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-4 py-3.5 focus:outline-none focus:ring-2 focus:ring-blue-500 text-base text-white transition-all caret-blue-400"
               />
               <button
                 onClick={() => sendMessage(input)}
                 disabled={paused || loading || !input.trim()}
-                className="bg-blue-600 hover:bg-blue-500 text-white px-6 rounded-xl font-bold transition-all active:scale-95"
+                className="bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white px-6 rounded-xl font-bold transition-all active:scale-95 shadow-lg"
               >
                 שלח
               </button>
@@ -211,3 +246,4 @@ export default function MdaSimulator() {
     </div>
   );
 }
+
