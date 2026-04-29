@@ -95,33 +95,60 @@ export async function POST(req: NextRequest) {
     if (!streamResult) throw new Error('Models unavailable');
 
     const encoder = new TextEncoder();
-    return new Response(
-      new ReadableStream({
-        async start(controller) {
-          try {
-            if (isFirstMessage) {
-              let full = '';
-              for await (const chunk of streamResult.stream) full += chunk.text();
-              const caseText = extractCaseDescription(sanitize(full));
-              controller.enqueue(encoder.encode(INJECTED_PREFIX + caseText));
-            } else {
-              let buffer = '';
-              for await (const chunk of streamResult.stream) {
-                buffer += chunk.text();
-                const lines = buffer.split('\n');
-                buffer = lines.pop() ?? '';
-                const clean = sanitize(lines.join('\n'));
-                if (clean) controller.enqueue(encoder.encode(clean + '\n'));
-              }
-              if (buffer) controller.enqueue(encoder.encode(sanitize(buffer)));
+    const stream = new ReadableStream({
+      async start(controller) {
+        try {
+          if (isFirstMessage) {
+            // בהודעה ראשונה צוברים הכל כדי להזריק את ה-Prefix בצורה נקייה
+            let fullText = '';
+            for await (const chunk of streamResult.stream) {
+              const text = chunk.text();
+              if (text) fullText += text;
             }
-            controller.close();
-          } catch (e) { controller.error(e); }
-        },
-      }),
-      { headers: { 'Content-Type': 'text/plain; charset=utf-8', 'X-Scenario': encodeURIComponent(JSON.stringify(scenario)) } }
-    );
+            const clean = extractCaseDescription(sanitize(fullText));
+            controller.enqueue(encoder.encode(INJECTED_PREFIX + clean));
+          } else {
+            // בשיחה שוטפת משתמשים בבאפר כדי למנוע קטיעה של Regex באמצע מילה
+            let lineBuffer = '';
+            for await (const chunk of streamResult.stream) {
+              const text = chunk.text();
+              if (!text) continue;
+
+              lineBuffer += text;
+
+              if (lineBuffer.includes('\n')) {
+                const lines = lineBuffer.split('\n');
+                lineBuffer = lines.pop() ?? ''; // שומרים את השורה הלא גמורה
+                const processed = sanitize(lines.join('\n'));
+                if (processed) {
+                  controller.enqueue(encoder.encode(processed + '\n'));
+                }
+              }
+            }
+            // שליחת שאריות בסיום
+            if (lineBuffer) {
+              const final = sanitize(lineBuffer);
+              if (final) controller.enqueue(encoder.encode(final));
+            }
+          }
+          controller.close();
+        } catch (e: any) {
+          console.error("Stream error:", e);
+          // במקום לקרוס, שולחים הודעה למשתמש בתוך הסטרים
+          controller.enqueue(encoder.encode(`\n\n[שגיאת הזרמה: ${e.message}]`));
+          controller.close();
+        }
+      },
+    });
+
+    return new Response(stream, {
+      headers: {
+        'Content-Type': 'text/plain; charset=utf-8',
+        'X-Scenario': encodeURIComponent(JSON.stringify(scenario))
+      }
+    });
   } catch (err: any) {
+    console.error("Fatal API Error:", err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
